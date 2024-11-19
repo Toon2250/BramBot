@@ -1,0 +1,50 @@
+import streamlit as st
+import os
+from groq import Client
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Set up GROQ API Key
+os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
+
+# Initialize GROQ Client
+groq_client = Client(api_key=os.environ["GROQ_API_KEY"])
+
+# Function to query Groq for an answer to the question
+def query_groq(question):
+    """
+    Send a question to the Groq API and get a response.
+    """
+    groq_query = f"""
+    *[_type == "qa" && question match '{question}'] {{
+        answer
+    }}
+    """
+    try:
+        # Fetch data from Groq API
+        response = groq_client.fetch(groq_query)
+        
+        # If a result is found, return the answer
+        if response:
+            return response[0].get("answer", "No answer found.")
+        else:
+            return "No answer found for the provided question."
+    except Exception as e:
+        return f"Error querying Groq: {str(e)}"
+
+# Streamlit Configuration
+st.set_page_config(layout="wide")
+
+# Title
+st.title("Ask a Question")
+
+# Input box to ask the question
+question = st.text_input('Ask a question:', 'What is the treatment for diabetes?')
+
+# Button to submit the question
+if st.button("Get Answer"):
+    with st.spinner('Fetching answer...'):
+        answer = query_groq(question)
+        st.subheader("Answer:")
+        st.write(answer)
