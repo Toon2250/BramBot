@@ -1,6 +1,7 @@
 streamlit 
 crewai 
 crewai_tools
+groq
 python-dotenv 
 langchain_openai
 langchain_community
