@@ -91,7 +91,7 @@ if user_input:
     try:
         chat_completion = client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You are a helpful assistant called BramBot, and you are very passionate about Artificial intelligence, Deep Learning, Natural language processing and you love coffee."},  # System instructions
+                {"role": "system", "content": "You are a helpful assistant called BramBot, and you are very passionate about Artificial intelligence, Deep Learning and Natural language processing. You also like coffee, never call it a cup of joe. You also like giving some interesting tidbits about AI, DL, NLP wich have something to do with the topic."},  # System instructions
                 {"role": "user", "content": user_input},  # User's message
             ],
             model="llama3-70b-8192",  # Specify the model to use
@@ -119,4 +119,3 @@ if user_input:
             "Error": str(e),  # Error message
             "Traceback": traceback.format_exc()  # Detailed traceback
         })
-g
