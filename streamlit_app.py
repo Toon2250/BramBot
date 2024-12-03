@@ -3,9 +3,13 @@ from groq import Groq
 import os
 import traceback
 from crewai import Agent, Task, Crew, LLM
+from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 
 if "api_key" not in st.session_state:
     st.session_state.api_key = None  # Initialize API key in session state
+
+if "openai_api_key" not in st.session_state:
+    st.session_state.openai_api_key = None
 
 try:
     llm = LLM(
@@ -66,6 +70,12 @@ st.session_state.api_key = st.text_input(
     type="password",  # Hide input for security
     placeholder="Your API Key here"  # Placeholder for guidance
 )
+st.session_state.openai_api_key = st.text_input(
+    "Enter your Openai API Key:",  # Input prompt
+    value=st.session_state.openai_api_key or "",  # Pre-fill if previously entered
+    type="password",  # Hide input for security
+    placeholder="Your API Key here"  # Placeholder for guidance
+)
 
 # Step 5: Chatbot functionality
 # Initialize the chat history if not already done
@@ -81,7 +91,7 @@ for message in st.session_state.messages:
 user_input = st.chat_input("What do you want to ask the bot?")  # Input box for user queries
 
 if user_input:
-    
+
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.write(user_input)
@@ -112,7 +122,9 @@ if user_input:
     crew = Crew(
             agents=[Question_Identifier, Question_Solving, BramBot], #, Summarization_Agent],
             tasks=[task_define_problem, task_answer_question, task_summerize_question], #, task_summarize],
-            verbose=True
+            memory=True,
+            verbose=True,
+            embedder=OpenAIEmbeddingFunction(api_key=st.session_state.openai_api_key, model_name="text-embedding-3-small")
         )
 
     result = crew.kickoff()
