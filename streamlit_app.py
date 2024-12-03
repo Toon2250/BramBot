@@ -2,7 +2,7 @@ import streamlit as st
 from groq import Groq
 import os
 import traceback
-from crewai import Agent, Task, Crew, LLM
+from crewai import Agent, Task, Crew, LLM, Process
 
 if "api_key" not in st.session_state:
     st.session_state.api_key = None  # Initialize API key in session state
@@ -52,6 +52,13 @@ BramBot = Agent(
         allow_delegation=False,
         llm=llm,
     )
+
+manager = Agent(
+    role="Project Manager",
+    goal="Efficiently manage the crew and ensure high-quality task completion",
+    backstory="You're an experienced project manager, skilled in overseeing complex projects and guiding teams to success. Your role is to coordinate the efforts of the crew members, ensuring that each task is completed on time and to the highest standard.",
+    allow_delegation=True,
+)
 
 
 # Title and app description
@@ -112,7 +119,9 @@ if user_input:
     crew = Crew(
             agents=[Question_Identifier, Question_Solving, BramBot], #, Summarization_Agent],
             tasks=[task_define_problem, task_answer_question, task_summerize_question], #, task_summarize],
-            verbose=True
+            manager_agent=manager,
+            process=Process.hierarchical,
+            verbose=True,
         )
 
     result = crew.kickoff()
