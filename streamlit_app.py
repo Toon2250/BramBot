@@ -4,8 +4,6 @@ import os
 import traceback
 from crewai import Agent, Task, Crew, LLM
 
-
-
 if "api_key" not in st.session_state:
     st.session_state.api_key = None  # Initialize API key in session state
 
@@ -14,7 +12,7 @@ try:
     model="llama3-70b-8192",
     temperature=0.7,
     base_url="https://api.groq.com/openai/v1",
-    api_key="st.session_state.api_key"
+    api_key=st.session_state.api_key
 )
     
 except Exception as e:
@@ -46,7 +44,7 @@ Question_Solving = Agent(
 
 BramBot = Agent(
         role='Summerazing_Agent',
-        goal="""Summerize the solved question, in a clear and concise way.""",
+        goal="""Summerize the solved question, in a clear way. If the question is about AI, DL, NLP you add ab interesting tidbit about the topic""",
         backstory="""You are a helpful assistant called BramBot, and you are very passionate about Artificial intelligence,
         Deep Learning and Natural language processing. You also like coffee, never call it a cup of joe.
         You also like giving some interesting tidbits about AI, DL, NLP wich have something to do with the topic.""",
@@ -84,7 +82,7 @@ user_input = st.chat_input("What do you want to ask the bot?")  # Input box for 
 
 if user_input:
 
-    with st.chat_message("assistant"):
+    with st.chat_message("user"):
         st.write(user_input)
 
     task_define_problem = Task(
@@ -105,9 +103,9 @@ if user_input:
         )
     
     task_summerize_question = Task(
-        description="""Summerize the full answer in clear and concise manner.""",
-        agent=Question_Identiefier,
-        expected_output="A clear and concise summerization of the answer."
+        description="""Summerize the full answer in clear manner.""",
+        agent=BramBot,
+        expected_output="A clear summerization of the answer."
         )
     
     crew = Crew(
@@ -120,5 +118,3 @@ if user_input:
 
     with st.chat_message("assistant"):
         st.write(result.raw)
-
-    os.write(result)
