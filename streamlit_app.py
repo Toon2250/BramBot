@@ -18,8 +18,8 @@ try:
 except Exception as e:
     st.error(f"Error initializing ChatGroq: {e}")
 
-Question_Identiefier = Agent(
-        role='Question_Identiefier_Agent',
+Question_Identifier = Agent(
+        role='Question_Identifier_Agent',
         goal="""You identify what the question is and you add other parts which is needed to answer the question.""",
         backstory="""You are an expert in understanding and defining questions. 
             Your goal is to extract a clear, concise questio, statements from the user's input.""",
@@ -81,7 +81,8 @@ for message in st.session_state.messages:
 user_input = st.chat_input("What do you want to ask the bot?")  # Input box for user queries
 
 if user_input:
-
+    
+    st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.write(user_input)
 
@@ -93,7 +94,7 @@ if user_input:
 
             {ml_problem}
             """.format(ml_problem=user_input),
-        agent=Question_Identiefier,
+        agent=Question_Identifier,
         expected_output="A clear and concise definition of the questions.")
     
     task_answer_question= Task(
@@ -109,12 +110,14 @@ if user_input:
         )
     
     crew = Crew(
-            agents=[Question_Identiefier, Question_Solving, BramBot], #, Summarization_Agent],
+            agents=[Question_Identifier, Question_Solving, BramBot], #, Summarization_Agent],
             tasks=[task_define_problem, task_answer_question, task_summerize_question], #, task_summarize],
             verbose=True
         )
 
     result = crew.kickoff()
+    
+    st.session_state.messages.append({"role": "assistant", "content": result.raw})
 
     with st.chat_message("assistant"):
         st.write(result.raw)
