@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from crewai import Agent, Task, Crew, LLM, Process
+from crewai import Agent, Task, Crew, LLM
 
 def run_crew_ai_app(api_key):
     """
@@ -11,13 +11,13 @@ def run_crew_ai_app(api_key):
     """
     try:
         os.environ["GROQ_API_KEY"] = api_key
+        groq_api_key = os.environ.get('GROQ_API_KEY')
 
         # Initialize the LLM
         llm = LLM(
-            model="llama3-70b-8192",
+            model="groq/llama3-70b-8192",
             temperature=0.7,
             base_url="https://api.groq.com/openai/v1",
-            api_key=api_key
         )
 
         # Define agents and tasks
