@@ -2,20 +2,21 @@ import streamlit as st
 import os
 import PyPDF2
 from chromadb import Client
-from chromadb.config import Settings
+from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE, Settings
+from chromadb import PersistentClient
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 
 def initialize_chromadb(openai_api_key):
     embedding_fn = OpenAIEmbeddingFunction(api_key=openai_api_key, model_name="text-embedding-3-small")
 
-    client = Client(
-        Settings(
-            persist_directory="./vector_db",
-            embedding_function=embedding_fn
-        )
+    client = PersistentClient(
+        path="./vector_db",
+        settings=Settings(),
+        tenant=DEFAULT_TENANT,
+        database=DEFAULT_DATABASE
     )
 
-    collection = client.get_or_create_collection(name="pdf_documents")
+    collection = client.get_or_create_collection(name="pdf_documents", embedding_function=embedding_fn)
     return collection, embedding_fn
 
 def extract_text_from_pdf(pdf_file):
@@ -26,7 +27,7 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def tokenize_and_store(collection, embedding_fn, pdf_text, doc_id):
-    embeddings = embedding_fn.embed([pdf_text])  # Generate embedding
+    embeddings = embedding_fn([pdf_text])  # Generate embedding
     collection.add(
         documents=[pdf_text],
         metadatas=[{"source": "uploaded_pdf"}],
