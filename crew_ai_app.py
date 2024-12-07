@@ -65,7 +65,6 @@ def run_crew_ai_app(api_key):
             with st.chat_message("user"):
                 st.write(user_input)
 
-
             task_define_problem = Task(
                     description=f"Clarify and define the questions: {user_input}",
                     expected_output="A clear and concise definition of the question.",
@@ -95,8 +94,11 @@ def run_crew_ai_app(api_key):
             )
 
             result = crew.kickoff()
+            
+            st.session_state.messages.append({"role": "assistant", "content": result.raw})
             with st.chat_message("assistant"):
                 st.write("Result:", result.raw)
+
 
     except Exception as e:
         st.error(f"Error in Crew AI application: {e}")
