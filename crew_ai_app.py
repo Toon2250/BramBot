@@ -25,7 +25,7 @@ def run_crew_ai_app(api_key):
             role='Question_Identifier_Agent',
             goal="""You identify what the question is and add other parts needed to answer it.""",
             backstory="""You are an expert in understanding and defining questions.""",
-            verbose=True,
+            verbose=False,
             allow_delegation=False,
             llm=llm,
         )
@@ -34,7 +34,7 @@ def run_crew_ai_app(api_key):
             role='Question_Solving_Agent',
             goal="""You solve the questions.""",
             backstory="""You are an expert in solving questions.""",
-            verbose=True,
+            verbose=False,
             allow_delegation=False,
             llm=llm,
         )
@@ -43,7 +43,7 @@ def run_crew_ai_app(api_key):
             role='Summarizing_Agent',
             goal="""Summarize the solved question in a clear way and add an interesting tidbit.""",
             backstory="""You are a helpful assistant passionate about AI.""",
-            verbose=True,
+            verbose=False,
             allow_delegation=False,
             llm=llm,
         )
@@ -55,7 +55,7 @@ def run_crew_ai_app(api_key):
             llm=llm,
             allow_delegation=True,
         )
-
+   
         # Input from user
         user_input = st.text_input("What do you want to ask the bot?")
 
@@ -65,26 +65,29 @@ def run_crew_ai_app(api_key):
             with st.chat_message("user"):
                 st.write(user_input)
 
+
             task_define_problem = Task(
-                description=f"Clarify and define the questions: {user_input}",
-                expected_output="A clear and concise definition of the question."
-            )
+                    description=f"Clarify and define the questions: {user_input}",
+                    expected_output="A clear and concise definition of the question.",
+                    agent=Question_Identifier
+                )
 
             task_answer_question = Task(
-                description="Answer and fully clarify the user's question.",
-                expected_output="A clear answer to the full question."
-            )
+                    description="Answer and fully clarify the user's question.",
+                    expected_output="A clear answer to the full question.",
+                    agent=Question_Solving
+
+                )
 
             task_summarize_question = Task(
-                description="Summarize the full answer in a clear manner.",
-                expected_output="A clear summarization of the answer."
-            )
+                    description="Summarize the full answer in a clear manner.",
+                    expected_output="A clear summarization of the answer.",
+                    agent=BramBot
+                )     
 
             crew = Crew(
                 agents=[Question_Identifier, Question_Solving, BramBot],
                 tasks=[task_define_problem, task_answer_question, task_summarize_question],
-                manager_agent=manager,
-                process=Process.hierarchical,
                 verbose=True,
                 memory=False,
                 llm=llm,
@@ -92,7 +95,8 @@ def run_crew_ai_app(api_key):
             )
 
             result = crew.kickoff()
-            st.write("Result:", result.raw)
+            with st.chat_message("assistant"):
+                st.write("Result:", result.raw)
 
     except Exception as e:
         st.error(f"Error in Crew AI application: {e}")

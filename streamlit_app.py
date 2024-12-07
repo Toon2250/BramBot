@@ -2,7 +2,7 @@ import streamlit as st
 import importlib.util
 
 if "api_key" not in st.session_state:
-    st.session_state.api_key = None  # Initialize API key in session state
+    st.session_state.api_key = ""  # Initialize API key in session state
 
 # Title and app description
 st.title("💬 BramBot")
