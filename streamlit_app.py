@@ -19,18 +19,9 @@ st.session_state.api_key = st.text_input(
     placeholder="Your API Key here"  # Placeholder for guidance
 )
 
-# Step 5: Chatbot functionality
-# Initialize the chat history if not already done
-if "messages" not in st.session_state:
-    st.session_state.messages = []  # Stores user and bot messages
-
-# Display previous chat messages in the app
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):  # Display messages as user or assistant
-        st.markdown(message["content"])
-
 if st.session_state.api_key:
     st.success("API Key provided! Loading the chatbot application...")
+
 
     # Dynamically load the second file
     spec = importlib.util.spec_from_file_location("crew_ai_app", "crew_ai_app.py")
@@ -42,3 +33,4 @@ if st.session_state.api_key:
         crew_ai_module.run_crew_ai_app(st.session_state.api_key)
 else:
     st.warning("Please enter your API key to proceed.")
+

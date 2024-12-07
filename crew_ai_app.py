@@ -55,9 +55,17 @@ def run_crew_ai_app(api_key):
             llm=llm,
             allow_delegation=True,
         )
-   
-        # Input from user
-        user_input = st.text_input("What do you want to ask the bot?")
+
+        # Display chat history at the top
+        user_input = st.chat_input("What do you want to ask the bot?")  # Input box for user queries
+
+        if "messages" not in st.session_state:
+            st.session_state.messages = []  # Initialize chat history
+            
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):  # Display messages as user or assistant
+                st.markdown(message["content"])
+        # Ensure the input box always appears at the bottom
 
         if user_input:
 
@@ -102,3 +110,6 @@ def run_crew_ai_app(api_key):
 
     except Exception as e:
         st.error(f"Error in Crew AI application: {e}")
+
+
+ 
