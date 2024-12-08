@@ -1,27 +1,74 @@
 import streamlit as st
+import os
 from crewai import Agent, Task, Crew, LLM
+from crewai_tools import PDFSearchTool
 from chromadb import PersistentClient
 from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE, Settings
 from sentence_transformers import SentenceTransformer
+from crewai.memory import ShortTermMemory, LongTermMemory
+import openai
+
+# Some code couldn't be found in the libraries, even though it was mentioned on the official documentation
+
+class EnhanceLongTermMemory(LongTermMemory):
+    def __init__(self, storage):
+        self.storage = storage
+
+    def add_to_memory(self, documents, metadatas, ids):
+        self.storage.store(documents, metadatas, ids)
+
+    def retrieve_from_memory(self, query, top_k=5):
+        return self.storage.fetch_relevant(query, top_k=top_k)
+
+class EnhanceShortTermMemory(ShortTermMemory):
+    def __init__(self, storage):
+        self.storage = storage
+        self.memory = []  # Internal memory cache for fast retrieval during the session
+
+    def add_to_memory(self, documents, metadatas, ids):
+        # Update the internal cache
+        self.memory.extend(zip(documents, metadatas, ids))
+        
+        # Store in ChromaDB
+        self.storage.store(documents, metadatas, ids)
+
+    def retrieve_from_memory(self, query, top_k=5):
+        # Retrieve from ChromaDB
+        relevant_docs = self.storage.fetch_relevant(query, top_k=top_k)
+        return relevant_docs
+
+    def clear_memory(self):
+        # Clear the cache
+        self.memory = []
+
+        # Clearing ChromaDB collection (reinitialize the collection)
+        self.storage.collection.delete()  # Assuming ChromaDB supports this method
+        self.storage.collection = initialize_chromadb("short_term")
 
 # Prepare for usage of vectorized pdf's
 
-def initialize_chromadb():
+def initialize_chromadb(collection_name):
     client = PersistentClient(
         path="./vector_db",
         settings=Settings(),
         tenant=DEFAULT_TENANT,
         database=DEFAULT_DATABASE
     )
-    return client.get_collection(name="pdf_documents")
+
+    try:
+        collection = client.get_collection(name=collection_name)
+    except Exception:
+        collection = client.create_collection(name=collection_name)
+
+    return collection
 
 class ChromaDBStorage:
-    def __init__(self, collection, embedder):
+    def __init__(self, collection, openai_api_key):
         self.collection = collection
-        self.embedder = embedder
+        self.openai_api_key = openai_api_key
 
     def fetch_relevant(self, query, top_k=5):
-        query_embedding = self.embedder.encode([query]).tolist()
+        query_embedding = self._get_openai_embedding(query)
         results = self.collection.query(
             query_embeddings=query_embedding,
             n_results=top_k
@@ -29,12 +76,21 @@ class ChromaDBStorage:
         return results["documents"]
 
     def store(self, documents, metadatas, ids):
-        embeddings = self.embedder.encode(documents).tolist()
+        embeddings = [self._get_openai_embedding(doc) for doc in documents]
         self.collection.add(
             documents=documents,
             metadatas=metadatas,
-            ids=ids
+            ids=ids,
+            embeddings=embeddings
         )
+    
+    def _get_openai_embedding(self, text):
+        openai.api_key = self.openai_api_key
+        response = openai.Embedding.create(
+            input=text,
+            model="text-embedding-ada-002"
+        )
+        return response['data'][0]['embedding']
 
 # Talk to Groq 
 if "api_key" not in st.session_state:
@@ -53,10 +109,11 @@ try:
 except Exception as e:
     st.error(f"Error initializing ChatGroq: {e}")
 
-# getting acces to background
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-collection = initialize_chromadb()
-ltm_storage = ChromaDBStorage(collection, embedding_model)
+# needed for pdf-uploads
+UPLOAD_FOLDER = "./pdfs"
+
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 Question_Identifier = Agent(
         role='Question_Identifier_Agent',
@@ -110,6 +167,25 @@ st.session_state.openai_api_key = st.text_input(
     placeholder="Your API Key here"  # Placeholder for guidance
 )
 
+pdf_files = [f for f in os.listdir(UPLOAD_FOLDER) if f.endswith(".pdf")]
+toggle_dropdown = st.checkbox("Enable file selection")
+
+if "selected_file" not in st.session_state:
+    st.session_state.selected_file = None
+
+if toggle_dropdown and pdf_files:
+    st.session_state.selected_file = st.selectbox(
+        "Select a PDF file to view or process",
+        pdf_files,
+        key="dropdown"
+    )
+else:
+    st.session_state.selected_file = None
+
+if st.session_state.selected_file:
+    st.write(f"You selected: {st.session_state.selected_file}")
+    file_path = os.path.join(UPLOAD_FOLDER, st.session_state.selected_file)
+
 # Step 5: Chatbot functionality
 # Initialize the chat history if not already done
 if "messages" not in st.session_state:
@@ -127,6 +203,13 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.write(user_input)
+
+    # getting acces to memory
+    openai_api_key = st.session_state.openai_api_key
+    long_term_collection = initialize_chromadb("long_term")
+    short_term_collection = initialize_chromadb("short_term")
+    ltm_storage = ChromaDBStorage(long_term_collection, openai_api_key)
+    stm_storage = ChromaDBStorage(short_term_collection, openai_api_key)
 
     context = ltm_storage.fetch_relevant(user_input)
 
@@ -161,10 +244,14 @@ if user_input:
             long_term_memory=EnhanceLongTermMemory(
                 storage=ltm_storage
             ),
+            short_term_memory=EnhanceShortTermMemory(
+                storage=stm_storage
+            ),
             embedder={
-                "provider": "sentence-transformers",
+                "provider": "openai",
                 "config": {
-                    "model": "all-MiniLM-L6-v2"
+                    "model": "text-embedding-ada-002",
+                    "api_key": openai_api_key
                 }
             },
         )

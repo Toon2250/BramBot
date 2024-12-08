@@ -166,3 +166,4 @@ cython_debug/
 
 # to not send along the database
 vector_db
+pdfs
