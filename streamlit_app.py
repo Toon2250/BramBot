@@ -1,10 +1,42 @@
 import streamlit as st
-from groq import Groq
-import os
-import traceback
 from crewai import Agent, Task, Crew, LLM
-from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+from chromadb import PersistentClient
+from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE, Settings
+from sentence_transformers import SentenceTransformer
 
+# Prepare for usage of vectorized pdf's
+
+def initialize_chromadb():
+    client = PersistentClient(
+        path="./vector_db",
+        settings=Settings(),
+        tenant=DEFAULT_TENANT,
+        database=DEFAULT_DATABASE
+    )
+    return client.get_collection(name="pdf_documents")
+
+class ChromaDBStorage:
+    def __init__(self, collection, embedder):
+        self.collection = collection
+        self.embedder = embedder
+
+    def fetch_relevant(self, query, top_k=5):
+        query_embedding = self.embedder.encode([query]).tolist()
+        results = self.collection.query(
+            query_embeddings=query_embedding,
+            n_results=top_k
+        )
+        return results["documents"]
+
+    def store(self, documents, metadatas, ids):
+        embeddings = self.embedder.encode(documents).tolist()
+        self.collection.add(
+            documents=documents,
+            metadatas=metadatas,
+            ids=ids
+        )
+
+# Talk to Groq 
 if "api_key" not in st.session_state:
     st.session_state.api_key = None  # Initialize API key in session state
 
@@ -17,10 +49,14 @@ try:
     temperature=0.7,
     base_url="https://api.groq.com/openai/v1",
     api_key=st.session_state.api_key
-)
-    
+    )
 except Exception as e:
     st.error(f"Error initializing ChatGroq: {e}")
+
+# getting acces to background
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+collection = initialize_chromadb()
+ltm_storage = ChromaDBStorage(collection, embedding_model)
 
 Question_Identifier = Agent(
         role='Question_Identifier_Agent',
@@ -32,7 +68,6 @@ Question_Identifier = Agent(
         llm=llm,
     )
 
-
 Question_Solving = Agent(
         role='Question_Solving_Agent',
         goal="""You solve the questions.""",
@@ -43,8 +78,6 @@ Question_Solving = Agent(
         allow_delegation=False,
         llm=llm,
     )
-
-
 
 BramBot = Agent(
         role='Summerazing_Agent',
@@ -91,10 +124,11 @@ for message in st.session_state.messages:
 user_input = st.chat_input("What do you want to ask the bot?")  # Input box for user queries
 
 if user_input:
-
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.write(user_input)
+
+    context = ltm_storage.fetch_relevant(user_input)
 
     task_define_problem = Task(
         description="""Clarify and define the questions, 
@@ -124,7 +158,15 @@ if user_input:
             tasks=[task_define_problem, task_answer_question, task_summerize_question], #, task_summarize],
             memory=True,
             verbose=True,
-            embedder=OpenAIEmbeddingFunction(api_key=st.session_state.openai_api_key, model_name="text-embedding-3-small")
+            long_term_memory=EnhanceLongTermMemory(
+                storage=ltm_storage
+            ),
+            embedder={
+                "provider": "sentence-transformers",
+                "config": {
+                    "model": "all-MiniLM-L6-v2"
+                }
+            },
         )
 
     result = crew.kickoff()
