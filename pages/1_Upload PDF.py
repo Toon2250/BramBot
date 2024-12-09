@@ -3,37 +3,95 @@ import pdfplumber
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
-# Initialize Qdrant and embedding model
-qdrant = QdrantClient(url="http://localhost:6333")
-model = SentenceTransformer('llama3-70b-8192')
+# Initialize Qdrant API key and URL
+if "qdrant_key" not in st.session_state:
+    st.session_state.qdrant_key = ""  # Initialize API key in session state
 
-COLLECTION_NAME = "pdf_chunks"
+if "qdrant_url" not in st.session_state:
+    st.session_state.qdrant_url = ""  # Initialize API key in session state
 
-def embed_text(text):
-    return model.encode(text).tolist()
+st.session_state.qdrant_key = st.text_input(
+    "Enter your Qdrant API Key:",
+    value=st.session_state.qdrant_key or "",
+    type="password",
+    placeholder="Your Qdrant API Key here"
+)
 
-def extract_text_from_pdf(file):
-    with pdfplumber.open(file) as pdf:
-        return " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
+st.session_state.qdrant_url = st.text_input(
+    "Enter your Qdrant URL:",
+    value=st.session_state.qdrant_url or "",
+    placeholder="Your Qdrant URL here"
+)
 
-st.title("Upload and Process PDF")
+# Initialize SentenceTransformer model
+ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
+# Ensure Qdrant API key and URL are provided
+if st.session_state.qdrant_key and st.session_state.qdrant_url:
 
-if uploaded_file:
-    st.write("Processing the uploaded PDF...")
-    pdf_text = extract_text_from_pdf(uploaded_file)
-    
-    # Split text into smaller chunks
-    chunks = [pdf_text[i:i+500] for i in range(0, len(pdf_text), 500)]
-    embeddings = [embed_text(chunk) for chunk in chunks]
-    
-    # Store embeddings in Qdrant
-    qdrant.upsert(
-        collection_name=COLLECTION_NAME,
-        points=[
-            {"id": f"chunk_{i}", "vector": embedding, "payload": {"text": chunk}}
-            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings))
+    # Initialize Qdrant Client
+    qdrant = QdrantClient(url=st.session_state.qdrant_url, api_key=st.session_state.qdrant_key)
+
+    COLLECTION_NAME = "pdf_chunks"
+
+    # Function to check if a collection exists and create it if not
+    def create_collection_if_not_exists():
+        try:
+            # Try to retrieve collection info
+            qdrant.get_collection(COLLECTION_NAME)
+            st.write(f"Collection '{COLLECTION_NAME}' already exists.")
+        except Exception:
+            # If collection doesn't exist, create it
+            qdrant.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config={"size": 384, "distance": "Cosine"}  # Correct size based on model output
+            )
+            st.write(f"Collection '{COLLECTION_NAME}' created.")
+
+    # Call function to ensure collection exists
+    create_collection_if_not_exists()
+
+    # Function to extract text from the uploaded PDF
+    def extract_text_from_pdf(file):
+        with pdfplumber.open(file) as pdf:
+            return " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
+
+    # Function to get embeddings for the text chunks using Hugging Face model
+    def get_embeddings(texts):
+        # The ST_model.encode() will generate embeddings (vectors) for the input text
+        return ST_model.encode(texts)
+
+    # Streamlit UI to upload PDF and process it
+    st.title("Upload and Process PDF")
+    uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
+
+    if uploaded_file:
+        st.write("Processing the uploaded PDF...")
+        
+        # Extract text from the PDF
+        pdf_text = extract_text_from_pdf(uploaded_file)
+        
+        # Split the PDF text into smaller chunks (adjust as needed)
+        chunk_size = 500  # Adjust this based on your needs
+        chunks = [pdf_text[i:i + chunk_size] for i in range(0, len(pdf_text), chunk_size)]
+        
+        # Get embeddings for each chunk using Hugging Face model
+        embeddings = get_embeddings(chunks)
+        
+        # Store chunks with their corresponding vectors in Qdrant
+        points = [
+            {
+                "id": i,
+                "vector": embeddings[i].tolist(),  # Convert numpy array to list for Qdrant
+                "payload": {"text": chunk}
+            }
+            for i, chunk in enumerate(chunks)
         ]
-    )
-    st.success("PDF processed and data stored in Qdrant!")
+        
+        # Insert chunks with vectors into Qdrant
+        qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
+        
+        st.success("PDF processed and text with vectors stored in Qdrant!")
+
+else:
+    st.warning("Please enter your Qdrant API key and URL to proceed.")

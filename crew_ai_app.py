@@ -1,10 +1,11 @@
 import streamlit as st
 import os
+import openai
 from qdrant_client import QdrantClient
 from crewai import Agent, Task, Crew, LLM
-from groq import EmbeddingModel, GroqModel
+from sentence_transformers import SentenceTransformer
 
-def run_crew_ai_app(api_key, qdrant_key, qdrant_url, openai_key):
+def run_crew_ai_app(api_key, qdrant_key, qdrant_url):
     """
     Runs the Crew AI application integrated with Groq and Qdrant.
 
@@ -19,14 +20,12 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url, openai_key):
         os.environ["GROQ_API_KEY"] = api_key
         qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
-        # Initialize Groq Embedding Model
-        embedding_model = EmbeddingModel(api_key=api_key)
+        ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-        # Initialize Groq LLM
-        groq_model = GroqModel(
-            model="groq/llama3-70b-8192", 
-            api_key=api_key, 
-            temperature=0.7
+        llm = LLM(
+            model="groq/llama3-70b-8192",
+            temperature=0.7,
+            base_url="https://api.groq.com/openai/v1",
         )
 
         # Define agents with Groq LLM
@@ -36,7 +35,7 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url, openai_key):
             backstory="""You are an expert in understanding and defining questions.""",
             verbose=False,
             allow_delegation=False,
-            llm=groq_model,
+            llm=llm,
         )
 
         Question_Solving = Agent(
@@ -45,16 +44,16 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url, openai_key):
             backstory="""You are an expert in solving questions.""",
             verbose=False,
             allow_delegation=False,
-            llm=groq_model,
+            llm=llm,
         )
 
         BramBot = Agent(
             role='Summarizing_Agent',
-            goal="""Summarize the solved question in a clear way and add an interesting tidbit.""",
+            goal="""Summarize the solved question in a clear way.""",
             backstory="""You are a helpful assistant passionate about AI.""",
             verbose=False,
             allow_delegation=False,
-            llm=groq_model,
+            llm=llm,
         )
 
         # User Input
@@ -73,7 +72,7 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url, openai_key):
                 st.write(user_input)
 
             # Step 1: Embed Query Using Groq
-            query_vector = embedding_model.embed_text(user_input)
+            query_vector = ST_model.encode(user_input)
 
             # Step 2: Query Qdrant for Context
             results = qdrant_client.search(
@@ -82,6 +81,9 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url, openai_key):
                 limit=3
             )
             relevant_context = "\n".join(res.payload["text"] for res in results)
+
+            if not results:
+                relevant_context = "No relevant context found."
 
             # Step 3: Define Crew Tasks
             task_define_problem = Task(
@@ -108,7 +110,7 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url, openai_key):
                 tasks=[task_define_problem, task_answer_question, task_summarize_question],
                 verbose=True,
                 memory=False,
-                llm=groq_model
+                llm=llm
             )
 
             result = crew.kickoff()
