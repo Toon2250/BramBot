@@ -61,6 +61,5 @@ if st.session_state.api_key and st.session_state.qdrant_key and st.session_state
             st.session_state.qdrant_key,
             st.session_state.qdrant_url,
         )
-        
 else:
     st.warning("Please enter your API key to proceed.")
