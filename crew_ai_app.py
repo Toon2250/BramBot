@@ -5,7 +5,7 @@ from qdrant_client import QdrantClient
 from crewai import Agent, Task, Crew, LLM
 from sentence_transformers import SentenceTransformer
 
-def run_crew_ai_app(api_key, qdrant_key, qdrant_url):
+def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
     """
     Runs the Crew AI application integrated with Groq and Qdrant.
 
@@ -17,22 +17,23 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url):
     """
     try:
         # Set up API keys
-        os.environ["GROQ_API_KEY"] = api_key
+        os.environ[model_config["api_key_env"]] = api_key
+
         qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
         ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
         llm = LLM(
-            model="groq/llama3-70b-8192",
+            model=model_config["model"],
+            base_url=model_config["base_url"],
             temperature=0.7,
-            base_url="https://api.groq.com/openai/v1",
         )
 
         # Define agents with Groq LLM
         Question_Identifier = Agent(
             role='Question_Identifier_Agent',
-            goal="""You identify what the question is and add other parts needed to answer it.""",
-            backstory="""You are an expert in understanding and defining questions.""",
+            goal="Identify and refine the user's question.",
+            backstory="Expert in understanding user queries.",
             verbose=False,
             allow_delegation=False,
             llm=llm,
@@ -40,8 +41,8 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url):
 
         Question_Solving = Agent(
             role='Question_Solving_Agent',
-            goal="""You solve the questions.""",
-            backstory="""You are an expert in solving questions.""",
+            goal="Provide a detailed answer to the user's question.",
+            backstory="Expert in problem-solving.",
             verbose=False,
             allow_delegation=False,
             llm=llm,
@@ -56,14 +57,13 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url):
             llm=llm,
         )
 
-        # User Input
-        user_input = st.chat_input("What do you want to ask the bot?")  # Input box for user queries
-
+        # Chat input and history
+        user_input = st.chat_input("What do you want to ask the bot?")
         if "messages" not in st.session_state:
             st.session_state.messages = []  # Initialize chat history
-            
+        
         for message in st.session_state.messages:
-            with st.chat_message(message["role"]):  # Display messages as user or assistant
+            with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
         if user_input:
@@ -112,7 +112,6 @@ def run_crew_ai_app(api_key, qdrant_key, qdrant_url):
                 memory=False,
                 llm=llm
             )
-
             result = crew.kickoff()
 
             # Step 5: Display Results and Update Chat
