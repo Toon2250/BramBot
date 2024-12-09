@@ -12,17 +12,17 @@ if "messages" not in st.session_state:
 
 # Supported Model Providers (ensure this part exists in your code)
 MODEL_PROVIDERS = {
-    "Groq Llama 3 (70B)": {
+    "Llama 3 (70B)": {
         "model": "groq/llama3-70b-8192",
         "base_url": "https://api.groq.com/openai/v1",
         "api_key_env": "GROQ_API_KEY",
     },
-    "Groq Gemma 2": {
+    "Gemma 2": {
         "model": "groq/gemma2-9b-it",
         "base_url": "https://api.groq.com/openai/v1",
         "api_key_env": "GROQ_API_KEY",
     },
-    "Groq Mistral": {
+    "Mistral": {
         "model": "mixtral-8x7b-32768",
         "base_url": "https://api.groq.com/openai/v1",
         "api_key_env": "GROQ_API_KEY",
@@ -30,16 +30,20 @@ MODEL_PROVIDERS = {
 }
 
 # Title and description
-st.title("💬 BramBot with Model Selector")
+st.title("💬 BramBot")
 st.write(
-    "This chatbot allows you to choose between powerful AI models from Groq, OpenAI, and Google. "
+    "This chatbot allows you to choose between powerful AI models from Groq."
     "Enter your API key and select the model to begin chatting!"
 )
 
-# Model Selector
-selected_model = st.selectbox(
-    "Choose a Model Provider:", list(MODEL_PROVIDERS.keys()), index=0
-)
+# Create two columns: one for the model selector and one for the API key input
+col1, col2 = st.columns([4, 8])  # This gives the first column 8/12 and the second 4/12 width
+
+# Model Selector in the second column (4/12)
+with col1:
+    selected_model = st.selectbox(
+        "Choose a Model Provider:", list(MODEL_PROVIDERS.keys()), index=0
+    )
 
 # Reset the API key and chat history if a new model is selected
 if st.session_state.selected_model != selected_model:
@@ -48,14 +52,15 @@ if st.session_state.selected_model != selected_model:
 
 st.session_state.selected_model = selected_model  # Update the selected model in session state
 
-# Show API Key input only after a model is selected
-if selected_model:
-    st.session_state.api_key = st.text_input(
-        "Enter your API Key:",  # Input prompt
-        value=st.session_state.api_key or "",  # Pre-fill if previously entered
-        type="password",  # Hide the API key for security
-        placeholder="Your API Key here"  # Placeholder for guidance
-    )
+# API Key input in the first column (8/12)
+with col2:
+    if selected_model:
+        st.session_state.api_key = st.text_input(
+            (f"Enter your {st.session_state.selected_model} API Key:"),  # Input prompt
+            value=st.session_state.api_key or "",  # Pre-fill if previously entered
+            type="password",  # Hide the API key for security
+            placeholder="Your API Key here"  # Placeholder for guidance
+        )
 
 # Validate Input
 if st.session_state.api_key:

@@ -85,7 +85,7 @@ def run_crew_ai_app(api_key, model_config):
                 agents=[Question_Identifier, Question_Solving, BramBot],
                 tasks=[task_define_problem, task_answer_question, task_summarize_question],
                 verbose=True,
-                memory=False,
+                memory=True,
                 llm=llm,
             )
             result = crew.kickoff()
