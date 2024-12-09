@@ -4,9 +4,8 @@ from crewai import Agent, Task, Crew, LLM
 from crewai_tools import PDFSearchTool
 from chromadb import PersistentClient
 from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE, Settings
-from sentence_transformers import SentenceTransformer
 from crewai.memory import ShortTermMemory, LongTermMemory
-import openai
+from sentence_transformers import SentenceTransformer
 
 # Some code couldn't be found in the libraries, even though it was mentioned on the official documentation
 
@@ -26,10 +25,7 @@ class EnhanceShortTermMemory(ShortTermMemory):
         self.memory = []  # Internal memory cache for fast retrieval during the session
 
     def add_to_memory(self, documents, metadatas, ids):
-        # Update the internal cache
         self.memory.extend(zip(documents, metadatas, ids))
-        
-        # Store in ChromaDB
         self.storage.store(documents, metadatas, ids)
 
     def retrieve_from_memory(self, query, top_k=5):
@@ -40,7 +36,6 @@ class EnhanceShortTermMemory(ShortTermMemory):
     def clear_memory(self):
         # Clear the cache
         self.memory = []
-
         # Clearing ChromaDB collection (reinitialize the collection)
         self.storage.collection.delete()  # Assuming ChromaDB supports this method
         self.storage.collection = initialize_chromadb("short_term")
@@ -63,12 +58,11 @@ def initialize_chromadb(collection_name):
     return collection
 
 class ChromaDBStorage:
-    def __init__(self, collection, openai_api_key):
+    def __init__(self, collection):
         self.collection = collection
-        self.openai_api_key = openai_api_key
 
     def fetch_relevant(self, query, top_k=5):
-        query_embedding = self._get_openai_embedding(query)
+        query_embedding = self._get_hf_embedding(query)
         results = self.collection.query(
             query_embeddings=query_embedding,
             n_results=top_k
@@ -76,7 +70,7 @@ class ChromaDBStorage:
         return results["documents"]
 
     def store(self, documents, metadatas, ids):
-        embeddings = [self._get_openai_embedding(doc) for doc in documents]
+        embeddings = [self._get_hf_embedding(doc) for doc in documents]
         self.collection.add(
             documents=documents,
             metadatas=metadatas,
@@ -84,30 +78,40 @@ class ChromaDBStorage:
             embeddings=embeddings
         )
     
-    def _get_openai_embedding(self, text):
-        openai.api_key = self.openai_api_key
-        response = openai.Embedding.create(
-            input=text,
-            model="text-embedding-ada-002"
-        )
-        return response['data'][0]['embedding']
+    def _get_hf_embedding(self, text):
+        return hf_model.encode(text)
+    
+    def load(self):
+        """Load all data from the ChromaDB collection into memory."""
+        try:
+            # Assuming the collection has a method `get_all` to fetch all data
+            results = self.collection.get_all()  # This needs to match your ChromaDB API
+            documents = results.get("documents", [])
+            metadatas = results.get("metadatas", [])
+            ids = results.get("ids", [])
+            return documents, metadatas, ids
+        except AttributeError:
+            raise NotImplementedError("Ensure your ChromaDB collection supports fetching all data.")
 
 # Talk to Groq 
 if "api_key" not in st.session_state:
     st.session_state.api_key = None  # Initialize API key in session state
 
-if "openai_api_key" not in st.session_state:
-    st.session_state.openai_api_key = None
-
 try:
     llm = LLM(
-    model="llama3-70b-8192",
+    model="groq/llama3-70b-8192",
     temperature=0.7,
     base_url="https://api.groq.com/openai/v1",
     api_key=st.session_state.api_key
     )
 except Exception as e:
     st.error(f"Error initializing ChatGroq: {e}")
+
+hf_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+long_term_collection = initialize_chromadb("long_term")
+short_term_collection = initialize_chromadb("short_term")
+ltm_storage = ChromaDBStorage(long_term_collection)
+stm_storage = ChromaDBStorage(short_term_collection)
 
 # needed for pdf-uploads
 UPLOAD_FOLDER = "./pdfs"
@@ -160,12 +164,6 @@ st.session_state.api_key = st.text_input(
     type="password",  # Hide input for security
     placeholder="Your API Key here"  # Placeholder for guidance
 )
-st.session_state.openai_api_key = st.text_input(
-    "Enter your Openai API Key:",  # Input prompt
-    value=st.session_state.openai_api_key or "",  # Pre-fill if previously entered
-    type="password",  # Hide input for security
-    placeholder="Your API Key here"  # Placeholder for guidance
-)
 
 pdf_files = [f for f in os.listdir(UPLOAD_FOLDER) if f.endswith(".pdf")]
 toggle_dropdown = st.checkbox("Enable file selection")
@@ -175,16 +173,12 @@ if "selected_file" not in st.session_state:
 
 if toggle_dropdown and pdf_files:
     st.session_state.selected_file = st.selectbox(
-        "Select a PDF file to view or process",
+        "Select a PDF file",
         pdf_files,
         key="dropdown"
     )
 else:
     st.session_state.selected_file = None
-
-if st.session_state.selected_file:
-    st.write(f"You selected: {st.session_state.selected_file}")
-    file_path = os.path.join(UPLOAD_FOLDER, st.session_state.selected_file)
 
 # Step 5: Chatbot functionality
 # Initialize the chat history if not already done
@@ -204,14 +198,45 @@ if user_input:
     with st.chat_message("user"):
         st.write(user_input)
 
-    # getting acces to memory
-    openai_api_key = st.session_state.openai_api_key
-    long_term_collection = initialize_chromadb("long_term")
-    short_term_collection = initialize_chromadb("short_term")
-    ltm_storage = ChromaDBStorage(long_term_collection, openai_api_key)
-    stm_storage = ChromaDBStorage(short_term_collection, openai_api_key)
+    #context = ltm_storage.fetch_relevant(user_input)
 
-    context = ltm_storage.fetch_relevant(user_input)
+    if st.session_state.selected_file is not None:
+        pdf_tool = PDFSearchTool(
+                config=dict(
+                llm=dict(
+                    provider="groq",  # Specify Groq as the LLM provider
+                    config=dict(
+                        model="groq/llama3-70b-8192",
+                        temperature=0.7,
+                        base_url="https://api.groq.com/openai/v1",
+                        api_key=st.session_state.api_key
+                        # Include any additional settings for the Groq model if required
+                    ),
+                ),
+                embedder=dict(
+                    provider="huggingface",  # Use Hugging Face for embeddings
+                    config=dict(
+                        model="sentence-transformers/all-MiniLM-L6-v2",  # Hugging Face embedding model
+                        ),
+                    ),
+                ),
+                pdf=os.path.join(UPLOAD_FOLDER, st.session_state.selected_file)
+            )
+
+        summarize_agent = Agent(
+            role="Summarization Agent",
+            goal="""Summarize the given PDF, in a clear way.""",
+            backstory="""You always try to give the summarization as best as possible""",
+            verbose=True,
+            allow_delegation=False,
+            llm=llm,
+            tools=[pdf_tool]
+        )
+
+        task_pdf_summarize = Task(
+            description="You summarize the information from pdf's.",
+            expected_output="A summarization of the text from the pdf."
+        )
 
     task_define_problem = Task(
         description="""Clarify and define the questions, 
@@ -236,24 +261,32 @@ if user_input:
         expected_output="A clear summerization of the answer."
         )
     
+    task_list = [task_define_problem, task_answer_question, task_summerize_question]
+    agents_list = [Question_Identifier, Question_Solving, BramBot]
+
+    if st.session_state.selected_file is not None:
+        task_list = []
+        task_list.append(task_pdf_summarize)
+        agents_list = []
+        agents_list.append(summarize_agent)
+
     crew = Crew(
-            agents=[Question_Identifier, Question_Solving, BramBot], #, Summarization_Agent],
-            tasks=[task_define_problem, task_answer_question, task_summerize_question], #, task_summarize],
+            agents=agents_list, #, Summarization_Agent],
+            tasks=task_list, #, task_summarize],
             memory=True,
             verbose=True,
-            long_term_memory=EnhanceLongTermMemory(
-                storage=ltm_storage
-            ),
-            short_term_memory=EnhanceShortTermMemory(
-                storage=stm_storage
-            ),
-            embedder={
-                "provider": "openai",
-                "config": {
-                    "model": "text-embedding-ada-002",
-                    "api_key": openai_api_key
-                }
-            },
+            #long_term_memory=EnhanceLongTermMemory(
+            #    storage=ltm_storage
+            #),
+            #short_term_memory=EnhanceShortTermMemory(
+            #    storage=stm_storage
+            #),
+            #embedder={
+            #    "provider": "huggingface",
+            #    "config": {
+            #        "model": hf_model
+            #    }
+            #},
         )
 
     result = crew.kickoff()

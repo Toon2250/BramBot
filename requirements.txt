@@ -8,3 +8,6 @@ langchain_community
 python-docx
 chromadb
 ollama
+transformers
+sentence-transformers
+langchain_huggingface
