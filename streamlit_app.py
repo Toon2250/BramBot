@@ -1,6 +1,5 @@
 import streamlit as st
 import importlib.util
-import os
 
 # Initialize session state variables
 if "selected_model" not in st.session_state:
@@ -9,6 +8,9 @@ if "api_key" not in st.session_state:
     st.session_state.api_key = ""  # Initialize API key in session state
 if "messages" not in st.session_state:
     st.session_state.messages = []  # Store chat history
+
+COLLECTION_NAME = "pdf_chunks"
+SESSION_HISTORY = "session_history"
 
 # Supported Model Providers (ensure this part exists in your code)
 MODEL_PROVIDERS = {
@@ -30,6 +32,14 @@ MODEL_PROVIDERS = {
 }
 
 # Title and description
+if "qdrant_key" not in st.session_state:
+    st.session_state.qdrant_key = ""  # Initialize API key in session state
+
+if "qdrant_url" not in st.session_state:
+    st.session_state.qdrant_url = ""  # Initialize API key in session state
+
+
+# Title and app description
 st.title("💬 BramBot")
 st.write(
     "This chatbot allows you to choose between powerful AI models from Groq."
@@ -61,12 +71,27 @@ with col2:
             type="password",  # Hide the API key for security
             placeholder="Your API Key here"  # Placeholder for guidance
         )
+   
+st.session_state.qdrant_key = st.text_input(
+    "Enter your Qdrant API Key:",
+    value=st.session_state.qdrant_key or "",
+    type="password",
+    placeholder="Your Qdrant API Key here"
+)
+
+st.session_state.qdrant_url = st.text_input(
+    "Enter your Qdrant URL:",
+    value=st.session_state.qdrant_url or "",
+    placeholder="Your Qdrant URL here"
+)
+
+
 
 # Validate Input
-if st.session_state.api_key:
+if st.session_state.api_key and st.session_state.qdrant_key and st.session_state.qdrant_url:
     st.success(f"API Key provided! Selected model: {st.session_state.selected_model}")
     
-    # Dynamically load the crew_ai_app module
+    
     spec = importlib.util.spec_from_file_location("crew_ai_app", "crew_ai_app.py")
     crew_ai_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(crew_ai_module)
@@ -77,6 +102,8 @@ if st.session_state.api_key:
         crew_ai_module.run_crew_ai_app(
             api_key=st.session_state.api_key,
             model_config=selected_model_config,
+            st.session_state.qdrant_key,
+            st.session_state.qdrant_url,
         )
 else:
     st.warning("Please enter your API key to proceed.")
