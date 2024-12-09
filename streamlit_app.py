@@ -17,15 +17,15 @@ MODEL_PROVIDERS = {
         "base_url": "https://api.groq.com/openai/v1",
         "api_key_env": "GROQ_API_KEY",
     },
-    "OpenAI GPT-4": {
-        "model": "openai/gpt-4",
-        "base_url": "https://api.openai.com/v1",
-        "api_key_env": "OPENAI_API_KEY",
+    "Groq Gemma 2": {
+        "model": "groq/gemma2-9b-it",
+        "base_url": "https://api.groq.com/openai/v1",
+        "api_key_env": "GROQ_API_KEY",
     },
-    "Google Gemini": {
-        "model": "vertexai/gemini-1",
-        "base_url": "https://api.vertex.ai/v1",
-        "api_key_env": "GEMINI_API_KEY",
+    "Groq Mistral": {
+        "model": "mixtral-8x7b-32768",
+        "base_url": "https://api.groq.com/openai/v1",
+        "api_key_env": "GROQ_API_KEY",
     },
 }
 
