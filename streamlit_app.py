@@ -85,8 +85,6 @@ st.session_state.qdrant_url = st.text_input(
     placeholder="Your Qdrant URL here"
 )
 
-
-
 # Validate Input
 if st.session_state.api_key and st.session_state.qdrant_key and st.session_state.qdrant_url:
     st.success(f"API Key provided! Selected model: {st.session_state.selected_model}")
@@ -100,10 +98,10 @@ if st.session_state.api_key and st.session_state.qdrant_key and st.session_state
     if hasattr(crew_ai_module, "run_crew_ai_app"):
         selected_model_config = MODEL_PROVIDERS[st.session_state.selected_model]
         crew_ai_module.run_crew_ai_app(
-            api_key=st.session_state.api_key,
-            model_config=selected_model_config,
-            st.session_state.qdrant_key,
-            st.session_state.qdrant_url,
+            api_key= st.session_state.api_key,
+            qdrant_key= st.session_state.qdrant_key,
+            qdrant_url= st.session_state.qdrant_url,
+            model_config= selected_model_config,
         )
 else:
     st.warning("Please enter your API key to proceed.")

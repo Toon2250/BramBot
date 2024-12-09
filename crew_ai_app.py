@@ -23,6 +23,8 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
 
         ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
+        MessageList = st.session_state.messages
+
         llm = LLM(
             model=model_config["model"],
             base_url=model_config["base_url"],
@@ -43,6 +45,15 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
             role='Question_Solving_Agent',
             goal="Provide a detailed answer to the user's question.",
             backstory="Expert in problem-solving.",
+            verbose=False,
+            allow_delegation=False,
+            llm=llm,
+        )
+
+        Context_Filter = Agent(
+            role='Context_Filter_Agent',
+            goal="Filter the given context for only parts usefull to the user's question.",
+            backstory="Expert in filtering and understanding user questions.",
             verbose=False,
             allow_delegation=False,
             llm=llm,
@@ -85,29 +96,46 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
             if not results:
                 relevant_context = "No relevant context found."
 
+
             # Step 3: Define Crew Tasks
             task_define_problem = Task(
-                description=f"Clarify and define the questions: {user_input}\n\nContext:\n{relevant_context}",
+                description=f"Clarify and define the questions: {user_input}",
                 expected_output="A clear and concise definition of the question.",
                 agent=Question_Identifier
             )
 
+            Task_Summarize_Session= Task(
+                description=f"Summarize the session in a clear manner based on the question: \n{user_input} \n\n{MessageList}",
+                input=task_define_problem.output,
+                expected_output="A clear summarization of the session.",
+                agent=BramBot
+            )
+
+            Task_Filter_Context= Task(
+                description=f"filter the contect:\n{relevant_context}",
+                input=task_define_problem.output,
+                expected_output="Clear and concise data, that is usefull nd relevant to the question.",
+                agent=Context_Filter
+            )
+
             task_answer_question = Task(
-                description=f"Answer the user's question with full context:\n\n{relevant_context}",
+                description=f"Answer the user's question with full context, if no context fill in yourself.",
+                input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
                 expected_output="A clear answer to the full question.",
                 agent=Question_Solving
             )
 
             task_summarize_question = Task(
                 description="Summarize the full answer in a clear manner.",
+                input=task_answer_question.output,
                 expected_output="A clear summarization of the answer.",
                 agent=BramBot
             )
 
             # Step 4: Create and Run Crew
             crew = Crew(
-                agents=[Question_Identifier, Question_Solving, BramBot],
-                tasks=[task_define_problem, task_answer_question, task_summarize_question],
+                agents=[Question_Identifier, Context_Filter, Question_Solving, BramBot],
+                tasks=[task_define_problem,Task_Summarize_Session, Task_Filter_Context, task_answer_question, task_summarize_question],
                 verbose=True,
                 memory=False,
                 llm=llm
