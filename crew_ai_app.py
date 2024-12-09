@@ -1,33 +1,42 @@
 import streamlit as st
 import os
+from qdrant_client import QdrantClient
 from crewai import Agent, Task, Crew, LLM
+from groq import EmbeddingModel, GroqModel
 
-def run_crew_ai_app(api_key):
+def run_crew_ai_app(api_key, qdrant_key, qdrant_url, openai_key):
     """
-    Runs the Crew AI application after the API key is provided.
+    Runs the Crew AI application integrated with Groq and Qdrant.
 
     Parameters:
-        api_key (str): The API key for authenticating with Groq's LLM.
+        api_key (str): Groq API key for model access.
+        qdrant_key (str): Qdrant API key.
+        qdrant_url (str): URL for Qdrant service.
+        openai_key (str): OpenAI API key (if needed).
     """
     try:
+        # Set up API keys
         os.environ["GROQ_API_KEY"] = api_key
-        groq_api_key = os.environ.get('GROQ_API_KEY')
+        qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
-        # Initialize the LLM
-        llm = LLM(
-            model="groq/llama3-70b-8192",
-            temperature=0.7,
-            base_url="https://api.groq.com/openai/v1",
+        # Initialize Groq Embedding Model
+        embedding_model = EmbeddingModel(api_key=api_key)
+
+        # Initialize Groq LLM
+        groq_model = GroqModel(
+            model="groq/llama3-70b-8192", 
+            api_key=api_key, 
+            temperature=0.7
         )
 
-        # Define agents and tasks
+        # Define agents with Groq LLM
         Question_Identifier = Agent(
             role='Question_Identifier_Agent',
             goal="""You identify what the question is and add other parts needed to answer it.""",
             backstory="""You are an expert in understanding and defining questions.""",
             verbose=False,
             allow_delegation=False,
-            llm=llm,
+            llm=groq_model,
         )
 
         Question_Solving = Agent(
@@ -36,7 +45,7 @@ def run_crew_ai_app(api_key):
             backstory="""You are an expert in solving questions.""",
             verbose=False,
             allow_delegation=False,
-            llm=llm,
+            llm=groq_model,
         )
 
         BramBot = Agent(
@@ -45,18 +54,10 @@ def run_crew_ai_app(api_key):
             backstory="""You are a helpful assistant passionate about AI.""",
             verbose=False,
             allow_delegation=False,
-            llm=llm,
+            llm=groq_model,
         )
 
-        manager = Agent(
-            role="Project Manager",
-            goal="Efficiently manage the crew and ensure high-quality task completion",
-            backstory="You're an experienced project manager.",
-            llm=llm,
-            allow_delegation=True,
-        )
-
-        # Display chat history at the top
+        # User Input
         user_input = st.chat_input("What do you want to ask the bot?")  # Input box for user queries
 
         if "messages" not in st.session_state:
@@ -65,51 +66,57 @@ def run_crew_ai_app(api_key):
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):  # Display messages as user or assistant
                 st.markdown(message["content"])
-        # Ensure the input box always appears at the bottom
 
         if user_input:
-
             st.session_state.messages.append({"role": "user", "content": user_input})
             with st.chat_message("user"):
                 st.write(user_input)
 
+            # Step 1: Embed Query Using Groq
+            query_vector = embedding_model.embed_text(user_input)
+
+            # Step 2: Query Qdrant for Context
+            results = qdrant_client.search(
+                collection_name="pdf_chunks",
+                query_vector=query_vector,
+                limit=3
+            )
+            relevant_context = "\n".join(res.payload["text"] for res in results)
+
+            # Step 3: Define Crew Tasks
             task_define_problem = Task(
-                    description=f"Clarify and define the questions: {user_input}",
-                    expected_output="A clear and concise definition of the question.",
-                    agent=Question_Identifier
-                )
+                description=f"Clarify and define the questions: {user_input}\n\nContext:\n{relevant_context}",
+                expected_output="A clear and concise definition of the question.",
+                agent=Question_Identifier
+            )
 
             task_answer_question = Task(
-                    description="Answer and fully clarify the user's question.",
-                    expected_output="A clear answer to the full question.",
-                    agent=Question_Solving
-
-                )
+                description=f"Answer the user's question with full context:\n\n{relevant_context}",
+                expected_output="A clear answer to the full question.",
+                agent=Question_Solving
+            )
 
             task_summarize_question = Task(
-                    description="Summarize the full answer in a clear manner.",
-                    expected_output="A clear summarization of the answer.",
-                    agent=BramBot
-                )     
+                description="Summarize the full answer in a clear manner.",
+                expected_output="A clear summarization of the answer.",
+                agent=BramBot
+            )
 
+            # Step 4: Create and Run Crew
             crew = Crew(
                 agents=[Question_Identifier, Question_Solving, BramBot],
                 tasks=[task_define_problem, task_answer_question, task_summarize_question],
                 verbose=True,
                 memory=False,
-                llm=llm,
-
+                llm=groq_model
             )
 
             result = crew.kickoff()
-            
+
+            # Step 5: Display Results and Update Chat
             st.session_state.messages.append({"role": "assistant", "content": result.raw})
             with st.chat_message("assistant"):
-                st.write("Result:", result.raw)
-
+                st.write(result.raw)
 
     except Exception as e:
         st.error(f"Error in Crew AI application: {e}")
-
-
- 
