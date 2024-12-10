@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-import openai
 from qdrant_client import QdrantClient
 from crewai import Agent, Task, Crew, LLM
 from sentence_transformers import SentenceTransformer
