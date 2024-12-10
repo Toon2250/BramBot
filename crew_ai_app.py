@@ -67,6 +67,42 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
             llm=llm,
         )
 
+        # Step 3: Define Crew Tasks
+        task_define_problem = Task(
+                description=f"Clarify and define the questions: {user_input}",
+                expected_output="A clear and concise definition of the question.",
+                agent=Question_Identifier
+            )
+
+        Task_Summarize_Session= Task(
+                description=f"Summarize the session in a clear manner based on the question: \n{user_input} \n\n{MessageList}",
+                input=task_define_problem.output,
+                expected_output="A clear summarization of the session.",
+                agent=BramBot
+            )
+
+        Task_Filter_Context= Task(
+                description=f"filter the context:\n{relevant_context}",
+                input=task_define_problem.output,
+                expected_output="Clear and concise data, that is usefull and relevant to the question. Also add the source of where you found the relevant information.",
+                agent=Context_Filter
+            )
+
+        task_answer_question = Task(
+                description=f"Answer the user's question with usefull context, if no context fill in yourself. Also add the source of where you found the relevant information.",
+                input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
+                expected_output="A clear answer to the full question.",
+                agent=Question_Solving
+            )
+
+        task_summarize_question = Task(
+                description="Summarize the full answer in a clear manner.",
+                input=task_answer_question.output,
+                expected_output="A clear summarization of the answer.",
+                agent=BramBot
+            )
+
+
         # Chat input and history
         user_input = st.chat_input("What do you want to ask the bot?")
         if "messages" not in st.session_state:
@@ -90,52 +126,19 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
                 query_vector=query_vector,
                 limit=5
             )
+
             relevant_context = "\n".join(
                 f"Source: {res.payload['Source']}\nText: {res.payload['text']}" for res in results)
 
             if not results:
                 relevant_context = "No relevant context found."
 
-
-            # Step 3: Define Crew Tasks
-            task_define_problem = Task(
-                description=f"Clarify and define the questions: {user_input}",
-                expected_output="A clear and concise definition of the question.",
-                agent=Question_Identifier
-            )
-
-            Task_Summarize_Session= Task(
-                description=f"Summarize the session in a clear manner based on the question: \n{user_input} \n\n{MessageList}",
-                input=task_define_problem.output,
-                expected_output="A clear summarization of the session.",
-                agent=BramBot
-            )
-
-            Task_Filter_Context= Task(
-                description=f"filter the context:\n{relevant_context}",
-                input=task_define_problem.output,
-                expected_output="Clear and concise data, that is usefull and relevant to the question. Also add the source of where you found the relevant information.",
-                agent=Context_Filter
-            )
-
-            task_answer_question = Task(
-                description=f"Answer the user's question with usefull context, if no context fill in yourself. Also add the source of where you found the relevant information.",
-                input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
-                expected_output="A clear answer to the full question.",
-                agent=Question_Solving
-            )
-
-            task_summarize_question = Task(
-                description="Summarize the full answer in a clear manner.",
-                input=task_answer_question.output,
-                expected_output="A clear summarization of the answer.",
-                agent=BramBot
-            )
-
             # Step 4: Create and Run Crew
             crew = Crew(
                 agents=[Question_Identifier, Context_Filter, Question_Solving, BramBot],
                 tasks=[task_define_problem,Task_Summarize_Session, Task_Filter_Context, task_answer_question, task_summarize_question],
+                agents_config = 'config/agents.yaml',
+                tasks_config = 'config/tasks.yaml', 
                 verbose=True,
                 memory=False,
                 llm=llm
