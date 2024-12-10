@@ -71,19 +71,21 @@ with col2:
             type="password",  # Hide the API key for security
             placeholder="Your API Key here"  # Placeholder for guidance
         )
-   
-st.session_state.qdrant_key = st.text_input(
-    "Enter your Qdrant API Key:",
-    value=st.session_state.qdrant_key or "",
-    type="password",
-    placeholder="Your Qdrant API Key here"
-)
 
-st.session_state.qdrant_url = st.text_input(
-    "Enter your Qdrant URL:",
-    value=st.session_state.qdrant_url or "",
-    placeholder="Your Qdrant URL here"
-)
+col3, col4 = st.columns([6, 6])  # This gives the first column 6/12 and the second 6/12 width
+with col3:
+    st.session_state.qdrant_url = st.text_input(
+        "Enter your Qdrant URL:",
+        value=st.session_state.qdrant_url or "",
+        placeholder="Your Qdrant URL here"
+    )
+with col4:
+        st.session_state.qdrant_key = st.text_input(
+        "Enter your Qdrant API Key:",
+        value=st.session_state.qdrant_key or "",
+        type="password",
+        placeholder="Your Qdrant API Key here"
+    )
 
 # Validate Input
 if st.session_state.api_key and st.session_state.qdrant_key and st.session_state.qdrant_url:
