@@ -88,9 +88,10 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
             results = qdrant_client.search(
                 collection_name="pdf_chunks",
                 query_vector=query_vector,
-                limit=3
+                limit=5
             )
-            relevant_context = "\n".join(res.payload["text"] for res in results)
+            relevant_context = "\n".join(
+                f"Source: {res.payload['Source']}\nText: {res.payload['text']}" for res in results)
 
             if not results:
                 relevant_context = "No relevant context found."
@@ -111,14 +112,14 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
             )
 
             Task_Filter_Context= Task(
-                description=f"filter the contect:\n{relevant_context}",
+                description=f"filter the context:\n{relevant_context}",
                 input=task_define_problem.output,
-                expected_output="Clear and concise data, that is usefull nd relevant to the question.",
+                expected_output="Clear and concise data, that is usefull and relevant to the question. Also add the source of where you found the relevant information.",
                 agent=Context_Filter
             )
 
             task_answer_question = Task(
-                description=f"Answer the user's question with full context, if no context fill in yourself.",
+                description=f"Answer the user's question with usefull context, if no context fill in yourself. Also add the source of where you found the relevant information.",
                 input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
                 expected_output="A clear answer to the full question.",
                 agent=Question_Solving
