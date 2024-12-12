@@ -40,7 +40,7 @@ ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 if st.session_state.qdrant_key and st.session_state.qdrant_url:
 
     # Initialize Qdrant Client
-    qdrant = QdrantClient(url=st.session_state.qdrant_url, api_key=st.session_state.qdrant_key)
+    qdrant = QdrantClient(url=st.session_state.qdrant_url, api_key=st.session_state.qdrant_key, timeout=60)
 
     COLLECTION_NAME = "pdf_chunks"
 
@@ -73,11 +73,12 @@ if st.session_state.qdrant_key and st.session_state.qdrant_url:
 
     # Streamlit UI to upload PDF and process it
     st.title("Upload and Process PDF")
-    uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
+    uploaded_file = st.file_uploader("Upload a PDF", type="pdf", accept_multiple_files=False)
 
     if uploaded_file:
         st.write("Processing the uploaded PDF...")
         
+        pdf_name = uploaded_file.name
         # Extract text from the PDF
         pdf_text = extract_text_from_pdf(uploaded_file)
         
@@ -93,15 +94,20 @@ if st.session_state.qdrant_key and st.session_state.qdrant_url:
             {
                 "id": i,
                 "vector": embeddings[i].tolist(),  # Convert numpy array to list for Qdrant
-                "payload": {"text": chunk}
+                "payload": {"Source": pdf_name, "text": chunk}
             }
             for i, chunk in enumerate(chunks)
         ]
-        
+
+        batch_size = 100
         # Insert chunks with vectors into Qdrant
-        qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
-        
-        st.success("PDF processed and text with vectors stored in Qdrant!")
+        for i in range(0, len(points), batch_size):
+            batch = points[i:i + batch_size]
+            qdrant.upsert(collection_name=COLLECTION_NAME, points=batch)
+
+        st.session_state.file_uploader = None
+
+        st.success("PDF "+ pdf_name +" processed and text with vectors stored in Qdrant!")
 
 else:
     st.warning("Please enter your Qdrant API key and URL to proceed.")
