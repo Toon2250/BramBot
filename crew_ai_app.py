@@ -59,15 +59,6 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
             llm=llm,
         )
 
-        Quiz_Agent = Agent(
-            role='Quiz_Agent',
-            goal="Provide a number of multiple choice questions relevant to the user's content when asked.",
-            backstory="Expert in creating multiple choice questions about the user questions content",
-            verbose=False,
-            allow_delegation=False,
-            llm=llm,
-        )
-
         BramBot = Agent(
             role='Summarizing_Agent',
             goal="""Summarize the solved question in a clear way.""",
@@ -156,14 +147,6 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
                     expected_output="A clear summarization of the answer.",
                     agent=BramBot
                 )
-
-
-            quiz_creation_question = Task(
-                description=f"Create a couple of multiple choice questions relevant to the context.",
-                input=task_define_problem.output,
-                expected_output="A clear multiple choice question list with at the end the awnsers with an explanation.",
-                Agent=Quiz_Agent
-            )
 
             # Step 4: Create and Run Crew
             if use_docs:
