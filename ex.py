@@ -21,17 +21,14 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
         if use_docs:
             qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
-        MessageList = st.session_state.messages
-
-
         ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-        SumHistory = ""
+        MessageList = st.session_state.messages
 
         llm = LLM(
             model=model_config["model"],
             base_url=model_config["base_url"],
-            temperature=0.7,
+            temperature=0.5,
         )
 
         # Define agents with Groq LLM
@@ -80,14 +77,6 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-        
-        if len(st.session_state.messages) >= 2:
-            # The last message should be user input, and the second to last should be the bot's response
-            last_user_message = st.session_state.messages[-2]["content"]
-            last_bot_message = st.session_state.messages[-1]["content"]
-            SumHistory += "\n" + last_user_message + "\n" + last_bot_message
-        else:
-            SumHistory = ""
         if user_input:
             st.session_state.messages.append({"role": "user", "content": user_input})
             with st.chat_message("user"):
@@ -97,19 +86,17 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
             query_vector = ST_model.encode(user_input)
 
             # Step 2: Query Qdrant for Context
-
             if use_docs:
                 results = qdrant_client.search(
-                  collection_name="pdf_chunks",
-                  query_vector=query_vector,
-                  limit=5
+                    collection_name="pdf_chunks",
+                    query_vector=query_vector,
+                    limit=3
                 )
-                relevant_context = "\n".join(f"Source: {res.payload['Source']}\nText: {res.payload['text']}" for res in results)
+                relevant_context = "\n".join(res.payload["text"] for res in results)
 
                 if not results:
                     relevant_context = "No relevant context found."
-            else:
-                relevant_context = "No relevant context found."
+
 
             # Step 3: Define Crew Tasks
             task_define_problem = Task(
@@ -150,6 +137,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
                     agent=Question_Solving
                 )
 
+
             if use_docs:
                 task_summarize_question = Task(
                     description="Summarize the full answer in a clear manner.",
@@ -164,7 +152,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
                     expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points.",
                     agent=BramBot
                 )
-                
+
             # Step 4: Create and Run Crew
             if use_docs:
                 agents = [Question_Identifier, Context_Filter, Question_Solving, BramBot]
@@ -196,8 +184,6 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
             st.session_state.messages.append({"role": "assistant", "content": result.raw})
             with st.chat_message("assistant"):
                 st.write(result.raw)
-
-            st.write(SumHistory)
 
     except Exception as e:
         st.error(f"Error in Crew AI application: {e}")

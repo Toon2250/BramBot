@@ -86,7 +86,6 @@ if use_docs:
 
 # Reset the API key and chat history if a new model is selected
 if st.session_state.selected_model != selected_model:
-    st.session_state.api_key = ""  # Reset API key
     st.session_state.messages = []  # Reset chat history
 
 st.session_state.selected_model = selected_model  # Update the selected model in session state
