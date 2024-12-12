@@ -1,0 +1,32 @@
+# Function to create a new session with a custom name
+    def create_new_session(name):
+        session_name = name if name else f"Session {len(st.session_state[SESSION_HISTORY]) + 1}"
+        st.session_state[SESSION_HISTORY][session_name] = []  # Initialize empty message history
+        st.session_state.selected_session = session_name
+        st.session_state.messages = []  # Initialize messages for the new session
+
+    # Dropdown or other way to select an existing session
+    if len(st.session_state[SESSION_HISTORY]) == 0:
+        selected_session = "New"  # No previous sessions, default to "New"
+    else:
+        selected_session = st.selectbox(
+            "Select or create a session",
+            ["New"] + list(st.session_state[SESSION_HISTORY].keys())
+        )
+
+    # If "New" session is selected, prompt the user for a session name
+    if selected_session == "New":
+        new_session_name = st.text_input("Enter a name for your new session:")
+        if new_session_name:
+            create_new_session(new_session_name)
+        else:
+            # If the input is empty, fallback to the default session name
+            create_new_session(None)
+
+    # If a previous session is selected, set it as the active session
+    else:
+        st.session_state.selected_session = selected_session
+        st.session_state.messages = st.session_state[SESSION_HISTORY][selected_session]  # Load previous messages
+
+    # Display the active session
+    st.write(f"Active Session: {st.session_state.selected_session}")
