@@ -59,7 +59,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
             role='Context_Filter_Agent',
             goal="Filter the given context for only parts usefull to the user's question.",
             backstory="Expert in filtering and understanding user questions.",
-            verbose=False,
+            verbose=True,
             allow_delegation=False,
             llm=llm,
         )
@@ -73,7 +73,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
             llm=llm,
         )
 
-        internet_search_tool = EXASearchTool()
+        internet_search_tool = EXASearchTool(n_results=5)
 
         Internet_Search = Agent(
             role='Internet_Searching_Agent',
@@ -145,13 +145,13 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
                 Task_Filter_Context = Task(
                     description=f"Filter the context:\n{relevant_context}",
                     input=task_define_problem.output,
-                    expected_output="A refined selection of the most relevant and useful information to help answer the user's question effectively.",
+                    expected_output="A refined selection of the most relevant and useful information to help answer the user's question effectively, and add the source of where this information came from.",
                     agent=Context_Filter
                 )
                 task_answer_context_question = Task(
-                    description=f"Answer the user's question with full context, if no context fill in yourself.",
+                    description=f"Answer the user's question with full context and source, if no context fill in yourself.",
                     input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
-                    expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context.",
+                    expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context and source.",
                     agent=Question_Solving
                 )
             else:
@@ -177,7 +177,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
                 task_summarize_question = Task(
                     description="Summarize the full answer in a clear manner.",
                     input=task_answer_context_question.output,
-                    expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points.",
+                    expected_output="A concise, conversational summary of the answer and source that makes it easy for the user to understand the key points.",
                     agent=BramBot
                 )
             else:
@@ -218,7 +218,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
             crew = Crew(
                 agents=agents,
                 tasks=tasks,
-                verbose=True,
+                verbose=False,
                 memory=False,
                 llm=llm
             )
