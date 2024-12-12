@@ -89,6 +89,7 @@ st.session_state.qdrant_url = st.text_input(
 st.session_state.exa_api_key = st.text_input(
     "Enter your EXA key:",
     value=st.session_state.exa_api_key or "",
+    type="password",
     placeholder="Your EXA key here"
 )
 

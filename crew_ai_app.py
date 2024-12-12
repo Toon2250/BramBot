@@ -72,7 +72,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
         internet_search_tool = EXASearchTool()
 
         Internet_Search = Agent(
-            role='Internet_searching_bot',
+            role='Internet_Searching_Agent',
             goal="""search the internet for answers, relevant to the question""",
             backstory="""You are a helpful assistant that will search the internet for an answer to the given question""",
             verbose=False,
@@ -145,10 +145,25 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
                 agent=BramBot
             )
 
+            task_answer_question_internet = Task(
+                description=f"Answer the user's question using an internet search, you always try to use the most recent information.",
+                input=(task_define_problem.output, Task_Summarize_Session.output),
+                expected_output="A clear answer to the full question.",
+                agent=Internet_Search
+            )
+
+            task_summarize_question_internet = Task(
+                description="Summarize the full answer in a clear manner.",
+                input=task_answer_question_internet.output,
+                expected_output="A clear summarization of the answer.",
+                agent=BramBot
+            )
+
             # Step 4: Create and Run Crew
             crew = Crew(
                 agents=[Question_Identifier, Context_Filter, Question_Solving, BramBot],
-                tasks=[task_define_problem,Task_Summarize_Session, Task_Filter_Context, task_answer_question, task_summarize_question],
+                #tasks=[task_define_problem,Task_Summarize_Session, Task_Filter_Context, task_answer_question, task_summarize_question],
+                tasks=[task_define_problem,Task_Summarize_Session, task_answer_question_internet, task_summarize_question_internet],
                 verbose=True,
                 memory=False,
                 llm=llm
