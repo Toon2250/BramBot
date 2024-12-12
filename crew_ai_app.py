@@ -146,14 +146,14 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
             )
 
             task_answer_question_internet = Task(
-                description=f"Answer the user's question using an internet search, you always try to use the most recent information.",
+                description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, preferably a link",
                 input=(task_define_problem.output, Task_Summarize_Session.output),
                 expected_output="A clear answer to the full question.",
                 agent=Internet_Search
             )
 
             task_summarize_question_internet = Task(
-                description="Summarize the full answer in a clear manner.",
+                description="Summarize the full answer in a clear manner. And don't forget to also give the sources where the information was found, preferably a link",
                 input=task_answer_question_internet.output,
                 expected_output="A clear summarization of the answer.",
                 agent=BramBot
