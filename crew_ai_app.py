@@ -4,7 +4,7 @@ from qdrant_client import QdrantClient
 from crewai import Agent, Task, Crew, LLM
 from sentence_transformers import SentenceTransformer
 
-def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
+def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
     """
     Runs the Crew AI application integrated with Groq and Qdrant.
 
@@ -18,7 +18,8 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
         # Set up API keys
         os.environ[model_config["api_key_env"]] = api_key
 
-        qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
+        if use_docs:
+            qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
         ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
@@ -94,17 +95,19 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
             query_vector = ST_model.encode(user_input)
 
             # Step 2: Query Qdrant for Context
-            results = qdrant_client.search(
-                collection_name="pdf_chunks",
-                query_vector=query_vector,
-                limit=5
-            )
 
-            relevant_context = "\n".join(
-                f"Source: {res.payload['Source']}\nText: {res.payload['text']}" for res in results)
+            if use_docs:
+              results = qdrant_client.search(
+                  collection_name="pdf_chunks",
+                  query_vector=query_vector,
+                  limit=5
+              )
 
-            if not results:
-                relevant_context = "No relevant context found."
+              relevant_context = "\n".join(
+                  f"Source: {res.payload['Source']}\nText: {res.payload['text']}" for res in results)
+
+                if not results:
+                    relevant_context = "No relevant context found."
 
 
             # Step 3: Define Crew Tasks
@@ -122,33 +125,63 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
             )
             SumHistory = Task_Summarize_Session.output
 
-            Task_Filter_Context= Task(
-                description=f"filter the context:\n{relevant_context}",
-                input=task_define_problem.output,
-                expected_output="Clear and concise data, that is usefull and relevant to the question. Also add the source of where you found the relevant information.",
-                agent=Context_Filter
-            )
+            if use_docs:
+                Task_Filter_Context = Task(
+                    description=f"Filter the context:\n{relevant_context}",
+                    input=task_define_problem.output,
+                    expected_output="Clear and concise data, that is usefull and relevant to the question. Also add the source of where you found the relevant information.",
+                    agent=Context_Filter
+                )
+                task_answer_context_question = Task(
+                    description=f"Answer the user's question with usefull context in an easy to understand way you do not need to copy the context word for word if it is not needed, if no context fill in yourself. add the source of where you found the relevant information.",
+                    input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
+                    expected_output="A clear answer to the full question.",
+                    agent=Question_Solving
+                )
+            else:
+                task_answer_question = Task(
+                    description=f"Answer the user's question.",
+                    input=(task_define_problem.output, Task_Summarize_Session.output),
+                    expected_output="A clear answer to the full question.",
+                    agent=Question_Solving
+                )
 
-            task_answer_question = Task(
-                description=f"Answer the user's question with usefull context in an easy to understand way you do not need to copy the context word for word if it is not needed, if no context fill in yourself. add the source of where you found the relevant information.",
-                input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
-                expected_output="A clear answer to the full question.",
-                agent=Question_Solving
-            )
-
-            task_summarize_question = Task(
-                description="Summarize the full answer in a clear manner.",
-                input=task_answer_question.output,
-                expected_output="A clear summarization of the answer.",
-                agent=BramBot
-            )
-
+            if use_docs:
+                task_summarize_question = Task(
+                    description="Summarize the full answer in a clear manner.",
+                    input=task_answer_context_question.output,
+                    expected_output="A clear summarization of the answer.",
+                    agent=BramBot
+                )
+            else:
+                task_summarize_question = Task(
+                    description="Summarize the full answer in a clear manner.",
+                    input=task_answer_question.output,
+                    expected_output="A clear summarization of the answer.",
+                    agent=BramBot
+                )
+                
             # Step 4: Create and Run Crew
+            if use_docs:
+                agents = [Question_Identifier, Context_Filter, Question_Solving, BramBot]
+                tasks = [
+                    task_define_problem,
+                    Task_Summarize_Session,
+                    Task_Filter_Context,
+                    task_answer_context_question,
+                    task_summarize_question,
+                ]
+            else:
+                agents = [Question_Identifier, Question_Solving, BramBot]
+                tasks = [
+                    task_define_problem,
+                    Task_Summarize_Session,
+                    task_answer_question,
+                    task_summarize_question,
+                ]
             crew = Crew(
-                agents=[Question_Identifier, Context_Filter, Question_Solving, BramBot],
-                tasks=[task_define_problem, Task_Summarize_Session, Task_Filter_Context, task_answer_question, task_summarize_question],
-                agents_config = 'config/agents.yaml',
-                tasks_config = 'config/tasks.yaml', 
+                agents=agents,
+                tasks=tasks,
                 verbose=True,
                 memory=False,
                 llm=llm
