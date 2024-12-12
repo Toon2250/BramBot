@@ -5,7 +5,7 @@ from crewai import Agent, Task, Crew, LLM
 from crewai_tools import EXASearchTool
 from sentence_transformers import SentenceTransformer
 
-def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
+def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa_api_key):
     """
     Runs the Crew AI application integrated with Groq and Qdrant.
 
@@ -20,11 +20,15 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
         os.environ[model_config["api_key_env"]] = api_key
         os.environ["EXA_API_KEY"] = exa_api_key
 
-        qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
+        if use_docs:
+            qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
+
+        MessageList = st.session_state.messages
+
 
         ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-        MessageList = st.session_state.messages
+        SumHistory = ""
 
         llm = LLM(
             model=model_config["model"],
@@ -36,7 +40,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
         Question_Identifier = Agent(
             role='Question_Identifier_Agent',
             goal="Identify and refine the user's question.",
-            backstory="Expert in understanding user queries.",
+            backstory="A friendly and curious expert who loves unraveling what users really mean.",
             verbose=False,
             allow_delegation=False,
             llm=llm,
@@ -62,8 +66,8 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
 
         BramBot = Agent(
             role='Summarizing_Agent',
-            goal="""Summarize the solved question in a clear way.""",
-            backstory="""You are a helpful assistant passionate about AI.""",
+            goal="Summarize the solved question in a conversational, user-friendly manner.",
+            backstory="A cheerful assistant who enjoys explaining things clearly and helping others learn.",
             verbose=False,
             allow_delegation=False,
             llm=llm,
@@ -90,6 +94,14 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
+        
+        if len(st.session_state.messages) >= 2:
+            # The last message should be user input, and the second to last should be the bot's response
+            last_user_message = st.session_state.messages[-2]["content"]
+            last_bot_message = st.session_state.messages[-1]["content"]
+            SumHistory += "\n" + last_user_message + "\n" + last_bot_message
+        else:
+            SumHistory = ""
         if user_input:
             st.session_state.messages.append({"role": "user", "content": user_input})
             with st.chat_message("user"):
@@ -99,71 +111,113 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
             query_vector = ST_model.encode(user_input)
 
             # Step 2: Query Qdrant for Context
-            results = qdrant_client.search(
-                collection_name="pdf_chunks",
-                query_vector=query_vector,
-                limit=3
-            )
-            relevant_context = "\n".join(res.payload["text"] for res in results)
 
-            if not results:
+            if use_docs:
+                results = qdrant_client.search(
+                  collection_name="pdf_chunks",
+                  query_vector=query_vector,
+                  limit=5
+                )
+                relevant_context = "\n".join(f"Source: {res.payload['Source']}\nText: {res.payload['text']}" for res in results)
+
+                if not results:
+                    relevant_context = "No relevant context found."
+            else:
                 relevant_context = "No relevant context found."
-
 
             # Step 3: Define Crew Tasks
             task_define_problem = Task(
                 description=f"Clarify and define the questions: {user_input}",
-                expected_output="A clear and concise definition of the question.",
+                expected_output="A clear and conversational understanding of what the user is asking, rephrased in a way that's easy to follow.",
                 agent=Question_Identifier
             )
 
             Task_Summarize_Session= Task(
                 description=f"Summarize the session in a clear manner based on the question: \n{user_input} \n\n{MessageList}",
                 input=task_define_problem.output,
-                expected_output="A clear summarization of the session.",
+                expected_output="A friendly recap of the discussion so far, highlighting the key points and what has been addressed.",
                 agent=BramBot
             )
+            
+            SumHistory = Task_Summarize_Session.output
 
-            Task_Filter_Context= Task(
-                description=f"filter the contect:\n{relevant_context}",
-                input=task_define_problem.output,
-                expected_output="Clear and concise data, that is usefull nd relevant to the question.",
-                agent=Context_Filter
-            )
+            if use_docs:
+                Task_Filter_Context = Task(
+                    description=f"Filter the context:\n{relevant_context}",
+                    input=task_define_problem.output,
+                    expected_output="A refined selection of the most relevant and useful information to help answer the user's question effectively.",
+                    agent=Context_Filter
+                )
+                task_answer_context_question = Task(
+                    description=f"Answer the user's question with full context, if no context fill in yourself.",
+                    input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
+                    expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context.",
+                    agent=Question_Solving
+                )
+            else:
+                task_answer_question = Task(
+                    description=(
+                            f"Answer the user's question in the following structured format: "
+                            f"\n\n1. **Brief Overview**: Provide a concise definition or summary. "
+                            f"\n2. **Key Characteristics**: List important details as bullet points, focusing on traits or facts relevant to the query."
+                        ),
+                    input=task_define_problem.output,
+                    expected_output="A concise and accurate answer to the user's query, unless the query requires detailed explanation.",
+                    agent=Question_Solving
+                )
+                
+                task_answer_question_internet = Task(
+                    description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, preferably a link",
+                    input=(task_define_problem.output, Task_Summarize_Session.output),
+                    expected_output="A clear answer to the full question.",
+                    agent=Internet_Search
+                )
 
-            task_answer_question = Task(
-                description=f"Answer the user's question with full context, if no context fill in yourself.",
-                input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
-                expected_output="A clear answer to the full question.",
-                agent=Question_Solving
-            )
-
-            task_summarize_question = Task(
-                description="Summarize the full answer in a clear manner.",
-                input=task_answer_question.output,
-                expected_output="A clear summarization of the answer.",
-                agent=BramBot
-            )
-
-            task_answer_question_internet = Task(
-                description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, preferably a link",
-                input=(task_define_problem.output, Task_Summarize_Session.output),
-                expected_output="A clear answer to the full question.",
-                agent=Internet_Search
-            )
-
-            task_summarize_question_internet = Task(
-                description="Summarize the full answer in a clear manner. And don't forget to also give the sources where the information was found, preferably a link",
-                input=task_answer_question_internet.output,
-                expected_output="A clear summarization of the answer.",
-                agent=BramBot
-            )
-
+            if use_docs:
+                task_summarize_question = Task(
+                    description="Summarize the full answer in a clear manner.",
+                    input=task_answer_context_question.output,
+                    expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points.",
+                    agent=BramBot
+                )
+            else:
+                task_summarize_question = Task(
+                    description="Summarize the full answer in a clear manner.",
+                    input=task_answer_question.output,
+                    expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points.",
+                    agent=BramBot
+                )
+                
+                task_summarize_question_internet = Task(
+                    description="Summarize the full answer in a clear manner. And don't forget to also give the sources where the information was found, preferably a link",
+                    input=task_answer_question_internet.output,
+                    expected_output="A clear summarization of the answer.",
+                    agent=BramBot
+                )
+                
             # Step 4: Create and Run Crew
+            if use_docs:
+                agents = [Question_Identifier, Context_Filter, Question_Solving, BramBot]
+                tasks = [
+                    task_define_problem,
+                    Task_Summarize_Session,
+                    Task_Filter_Context,
+                    task_answer_context_question,
+                    task_summarize_question,
+                ]
+            else:
+                agents = [Question_Identifier, Question_Solving, BramBot, Internet_Search]
+                tasks = [
+                    task_define_problem,
+                    Task_Summarize_Session,
+                    #task_answer_question,
+                    task_answer_question_internet,
+                    #task_summarize_question,
+                    task_summarize_question_internet
+                ]
             crew = Crew(
-                agents=[Question_Identifier, Context_Filter, Question_Solving, BramBot],
-                #tasks=[task_define_problem,Task_Summarize_Session, Task_Filter_Context, task_answer_question, task_summarize_question],
-                tasks=[task_define_problem,Task_Summarize_Session, task_answer_question_internet, task_summarize_question_internet],
+                agents=agents,
+                tasks=tasks,
                 verbose=True,
                 memory=False,
                 llm=llm

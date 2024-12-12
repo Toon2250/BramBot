@@ -10,18 +10,28 @@ if "qdrant_key" not in st.session_state:
 if "qdrant_url" not in st.session_state:
     st.session_state.qdrant_url = ""  # Initialize API key in session state
 
-st.session_state.qdrant_key = st.text_input(
-    "Enter your Qdrant API Key:",
-    value=st.session_state.qdrant_key or "",
-    type="password",
-    placeholder="Your Qdrant API Key here"
-)
 
-st.session_state.qdrant_url = st.text_input(
+# Title and app description
+st.title("💬 BramBot")
+st.write(
+    "This chatbot allows you to choose between powerful AI models from Groq."
+    "Enter your API key and select the model to begin chatting!"
+)
+col1, col2 = st.columns([6, 6])  # This gives the first column 6/12 and the second 6/12 width
+with col1:
+    st.session_state.qdrant_url = st.text_input(
     "Enter your Qdrant URL:",
     value=st.session_state.qdrant_url or "",
     placeholder="Your Qdrant URL here"
 )
+    
+with col2:   
+    st.session_state.qdrant_key = st.text_input(
+        "Enter your Qdrant API Key:",
+        value=st.session_state.qdrant_key or "",
+        type="password",
+        placeholder="Your Qdrant API Key here"
+    )
 
 # Initialize SentenceTransformer model
 ST_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
