@@ -2,9 +2,10 @@ import streamlit as st
 import os
 from qdrant_client import QdrantClient
 from crewai import Agent, Task, Crew, LLM
+from crewai_tools import EXASearchTool
 from sentence_transformers import SentenceTransformer
 
-def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
+def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, exa_api_key):
     """
     Runs the Crew AI application integrated with Groq and Qdrant.
 
@@ -17,6 +18,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
     try:
         # Set up API keys
         os.environ[model_config["api_key_env"]] = api_key
+        os.environ["EXA_API_KEY"] = exa_api_key
 
         qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
 
@@ -65,6 +67,18 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url):
             verbose=False,
             allow_delegation=False,
             llm=llm,
+        )
+
+        internet_search_tool = EXASearchTool()
+
+        Internet_Search = Agent(
+            role='Internet_searching_bot',
+            goal="""search the internet for answers, relevant to the question""",
+            backstory="""You are a helpful assistant that will search the internet for an answer to the given question""",
+            verbose=False,
+            allow_delegation=False,
+            llm=llm,
+            tools=[internet_search_tool]
         )
 
         # Chat input and history
