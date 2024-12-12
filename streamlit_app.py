@@ -59,10 +59,10 @@ with col1:
 with col2:
     if selected_model:
         st.session_state.api_key = st.text_input(
-            (f"Enter your {st.session_state.selected_model} API Key:"),  # Input prompt
+            (f"Enter your Groq API Key:"),  # Input prompt
             value=st.session_state.api_key or "",  # Pre-fill if previously entered
             type="password",  # Hide the API key for security
-            placeholder="Your API Key here"  # Placeholder for guidance
+            placeholder="Your Groq API Key here"  # Placeholder for guidance
         )
 
 #Place Checkbox here

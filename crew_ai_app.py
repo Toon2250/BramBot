@@ -124,6 +124,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
                 expected_output="A friendly recap of the discussion so far, highlighting the key points and what has been addressed.",
                 agent=BramBot
             )
+            SumHistory = Task_Summarize_Session.output
 
             if use_docs:
                 Task_Filter_Context = Task(
@@ -196,8 +197,6 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
             st.session_state.messages.append({"role": "assistant", "content": result.raw})
             with st.chat_message("assistant"):
                 st.write(result.raw)
-
-            st.write(SumHistory)
 
     except Exception as e:
         st.error(f"Error in Crew AI application: {e}")
