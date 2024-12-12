@@ -2,9 +2,10 @@ import streamlit as st
 import os
 from qdrant_client import QdrantClient
 from crewai import Agent, Task, Crew, LLM
+from crewai_tools import EXASearchTool
 from sentence_transformers import SentenceTransformer
 
-def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
+def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa_api_key):
     """
     Runs the Crew AI application integrated with Groq and Qdrant.
 
@@ -17,6 +18,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
     try:
         # Set up API keys
         os.environ[model_config["api_key_env"]] = api_key
+        os.environ["EXA_API_KEY"] = exa_api_key
 
         if use_docs:
             qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_key)
@@ -69,6 +71,18 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
             verbose=False,
             allow_delegation=False,
             llm=llm,
+        )
+
+        internet_search_tool = EXASearchTool()
+
+        Internet_Search = Agent(
+            role='Internet_Searching_Agent',
+            goal="""search the internet for answers, relevant to the question""",
+            backstory="""You are a helpful assistant that will search the internet for an answer to the given question""",
+            verbose=False,
+            allow_delegation=False,
+            llm=llm,
+            tools=[internet_search_tool]
         )
 
         # Chat input and history
@@ -124,6 +138,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
                 expected_output="A friendly recap of the discussion so far, highlighting the key points and what has been addressed.",
                 agent=BramBot
             )
+            
             SumHistory = Task_Summarize_Session.output
 
             if use_docs:
@@ -150,6 +165,13 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
                     expected_output="A concise and accurate answer to the user's query, unless the query requires detailed explanation.",
                     agent=Question_Solving
                 )
+                
+                task_answer_question_internet = Task(
+                    description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, preferably a link",
+                    input=(task_define_problem.output, Task_Summarize_Session.output),
+                    expected_output="A clear answer to the full question.",
+                    agent=Internet_Search
+                )
 
             if use_docs:
                 task_summarize_question = Task(
@@ -166,6 +188,13 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
                     agent=BramBot
                 )
                 
+                task_summarize_question_internet = Task(
+                    description="Summarize the full answer in a clear manner. And don't forget to also give the sources where the information was found, preferably a link",
+                    input=task_answer_question_internet.output,
+                    expected_output="A clear summarization of the answer.",
+                    agent=BramBot
+                )
+                
             # Step 4: Create and Run Crew
             if use_docs:
                 agents = [Question_Identifier, Context_Filter, Question_Solving, BramBot]
@@ -177,12 +206,14 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs):
                     task_summarize_question,
                 ]
             else:
-                agents = [Question_Identifier, Question_Solving, BramBot]
+                agents = [Question_Identifier, Question_Solving, BramBot, Internet_Search]
                 tasks = [
                     task_define_problem,
                     Task_Summarize_Session,
-                    task_answer_question,
-                    task_summarize_question,
+                    #task_answer_question,
+                    task_answer_question_internet,
+                    #task_summarize_question,
+                    task_summarize_question_internet
                 ]
             crew = Crew(
                 agents=agents,

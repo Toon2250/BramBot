@@ -31,13 +31,14 @@ MODEL_PROVIDERS = {
     },
 }
 
-# Title and description
 if "qdrant_key" not in st.session_state:
     st.session_state.qdrant_key = ""  # Initialize API key in session state
 
 if "qdrant_url" not in st.session_state:
     st.session_state.qdrant_url = ""  # Initialize API key in session state
 
+if "exa_api_key" not in st.session_state:
+    st.session_state.exa_api_key = ""
 
 # Title and app description
 st.title("💬 BramBot")
@@ -83,6 +84,13 @@ if use_docs:
             type="password",
             placeholder="Your Qdrant API Key here"
         )
+else:
+    st.session_state.exa_api_key = st.text_input(
+        "Enter your EXA key:",
+        value=st.session_state.exa_api_key or "",
+        type="password",
+        placeholder="Your EXA key here"
+    )
 
 # Reset the API key and chat history if a new model is selected
 if st.session_state.selected_model != selected_model:
@@ -107,11 +115,12 @@ if use_docs:
                 qdrant_url= st.session_state.qdrant_url,
                 model_config= selected_model_config,
                 use_docs = use_docs,
+                exa_api_key=st.session_state.exa_api_key
             )
     else:
         st.warning("Please enter your API key to proceed.")
 else:
-    if st.session_state.api_key:
+    if st.session_state.api_key and st.session_state.exa_api_key:
         st.success(f"API Key provided! Selected model: {st.session_state.selected_model}")
         spec = importlib.util.spec_from_file_location("crew_ai_app", "crew_ai_app.py")
         crew_ai_module = importlib.util.module_from_spec(spec)
@@ -126,6 +135,7 @@ else:
                 qdrant_url= st.session_state.qdrant_url,
                 model_config= selected_model_config,
                 use_docs = use_docs,
+                exa_api_key=st.session_state.exa_api_key
             )
     else:
         st.warning("Please enter your API key to proceed.")
