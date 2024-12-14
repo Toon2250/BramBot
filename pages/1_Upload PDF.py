@@ -14,9 +14,10 @@ if "qdrant_url" not in st.session_state:
 # Title and app description
 st.title("💬 BramBot")
 st.write(
-    "This chatbot allows you to choose between powerful AI models from Groq."
-    "Enter your API key and select the model to begin chatting!"
+    "This is the place to add PDF Documents to query and use with the chatbot."
+    "Enter your Qdrant api key and URL and select the PDF to begin uploading!"
 )
+
 col1, col2 = st.columns([6, 6])  # This gives the first column 6/12 and the second 6/12 width
 with col1:
     st.session_state.qdrant_url = st.text_input(
