@@ -5,9 +5,15 @@ import importlib.util
 if "selected_model" not in st.session_state:
     st.session_state.selected_model = ""  # Initialize selected model in session state
 if "api_key" not in st.session_state:
-    st.session_state.api_key = ""  # Initialize API key in session state
+    st.session_state.api_key = ""  # Initialize Groq API key in session state
 if "messages" not in st.session_state:
     st.session_state.messages = []  # Store chat history
+if "qdrant_key" not in st.session_state:
+    st.session_state.qdrant_key = ""  # Initialize Qdrant API key in session state
+if "qdrant_url" not in st.session_state:
+    st.session_state.qdrant_url = ""  # Initialize Qdrant Url in session state
+if "exa_api_key" not in st.session_state:
+    st.session_state.exa_api_key = "" #Initialize Exa API Key
 
 COLLECTION_NAME = "pdf_chunks"
 SESSION_HISTORY = "session_history"
@@ -31,14 +37,6 @@ MODEL_PROVIDERS = {
     },
 }
 
-if "qdrant_key" not in st.session_state:
-    st.session_state.qdrant_key = ""  # Initialize API key in session state
-
-if "qdrant_url" not in st.session_state:
-    st.session_state.qdrant_url = ""  # Initialize API key in session state
-
-if "exa_api_key" not in st.session_state:
-    st.session_state.exa_api_key = ""
 
 # Title and app description
 st.title("💬 BramBot")

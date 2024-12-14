@@ -33,7 +33,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
         llm = LLM(
             model=model_config["model"],
             base_url=model_config["base_url"],
-            temperature=0.7,
+            temperature=0.5,
         )
 
         # Define agents with Groq LLM
@@ -162,11 +162,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
                     agent=Internet_Search
                 )
             task_answer_question = Task(
-                description=(
-                        f"Answer the user's question in the following structured format: "
-                        f"\n\n1. **Brief Overview**: Provide a concise definition or summary. "
-                        f"\n2. **Key Characteristics**: List important details as bullet points, focusing on traits or facts relevant to the query."
-                    ),
+                description="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question.",
                 input=task_define_problem.output,
                 expected_output="A concise and accurate answer to the user's query, unless the query requires detailed explanation.",
                 agent=Question_Solving
