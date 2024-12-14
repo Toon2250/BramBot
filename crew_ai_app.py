@@ -5,7 +5,7 @@ from crewai import Agent, Task, Crew, LLM
 from crewai_tools import EXASearchTool
 from sentence_transformers import SentenceTransformer
 
-def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa_api_key):
+def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use_internet, exa_api_key):
     """
     Runs the Crew AI application integrated with Groq and Qdrant.
 
@@ -33,7 +33,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
         llm = LLM(
             model=model_config["model"],
             base_url=model_config["base_url"],
-            temperature=0.7,
+            temperature=0.5,
         )
 
         # Define agents with Groq LLM
@@ -77,8 +77,8 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
 
         Internet_Search = Agent(
             role='Internet_Searching_Agent',
-            goal="""search the internet for answers, relevant to the question""",
-            backstory="""You are a helpful assistant that will search the internet for an answer to the given question""",
+            goal="search the internet for answers, relevant to the question",
+            backstory="You are a helpful assistant that will search the internet for an answer to the given question",
             verbose=False,
             allow_delegation=False,
             llm=llm,
@@ -154,24 +154,19 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
                     expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context and source.",
                     agent=Question_Solving
                 )
-            else:
-                task_answer_question = Task(
-                    description=(
-                            f"Answer the user's question in the following structured format: "
-                            f"\n\n1. **Brief Overview**: Provide a concise definition or summary. "
-                            f"\n2. **Key Characteristics**: List important details as bullet points, focusing on traits or facts relevant to the query."
-                        ),
-                    input=task_define_problem.output,
-                    expected_output="A concise and accurate answer to the user's query, unless the query requires detailed explanation.",
-                    agent=Question_Solving
-                )
-                
+            if use_internet:               
                 task_answer_question_internet = Task(
-                    description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, preferably a link",
+                    description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, this is a link of the article where you found the information from.",
                     input=(task_define_problem.output, Task_Summarize_Session.output),
-                    expected_output="A clear answer to the full question.",
+                    expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context from the article that you found and link of that used article.",
                     agent=Internet_Search
                 )
+            task_answer_question = Task(
+                description="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question.",
+                input=task_define_problem.output,
+                expected_output="A concise and accurate answer to the user's query, unless the query requires detailed explanation.",
+                agent=Question_Solving
+            )
 
             if use_docs:
                 task_summarize_question = Task(
@@ -180,20 +175,21 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
                     expected_output="A concise, conversational summary of the answer and source that makes it easy for the user to understand the key points.",
                     agent=BramBot
                 )
-            else:
-                task_summarize_question = Task(
-                    description="Summarize the full answer in a clear manner.",
-                    input=task_answer_question.output,
-                    expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points.",
-                    agent=BramBot
-                )
-                
+            if use_internet:
                 task_summarize_question_internet = Task(
-                    description="Summarize the full answer in a clear manner. And don't forget to also give the sources where the information was found, preferably a link",
+                    description="Summarize the full answer in a clear manner, ensuring that any sources included are directly from the provided search results.",
                     input=task_answer_question_internet.output,
-                    expected_output="A clear summarization of the answer.",
+                    expected_output="A clear summarization of the answer, with only verified links included.",
                     agent=BramBot
                 )
+            
+            task_summarize_question = Task(
+                description="Summarize the full answer in a clear manner.",
+                input=task_answer_question.output,
+                expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points.",
+                agent=BramBot
+            )   
+
                 
             # Step 4: Create and Run Crew
             if use_docs:
@@ -202,18 +198,24 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, exa
                     task_define_problem,
                     Task_Summarize_Session,
                     Task_Filter_Context,
-                    task_answer_context_question,
                     task_summarize_question,
+                    task_answer_context_question
                 ]
-            else:
-                agents = [Question_Identifier, Question_Solving, BramBot, Internet_Search]
+            if use_internet:
+                agents = [Question_Identifier, Internet_Search, Question_Solving, BramBot ]
                 tasks = [
                     task_define_problem,
                     Task_Summarize_Session,
-                    #task_answer_question,
-                    task_answer_question_internet,
-                    #task_summarize_question,
-                    task_summarize_question_internet
+                    task_summarize_question_internet,
+                    task_answer_question_internet
+                ]
+            else:
+                agents = [Question_Identifier, Question_Solving, BramBot,]
+                tasks = [
+                    task_define_problem,
+                    Task_Summarize_Session,
+                    task_summarize_question,
+                    task_answer_question
                 ]
             crew = Crew(
                 agents=agents,

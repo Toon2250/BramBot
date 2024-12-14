@@ -5,22 +5,28 @@ import importlib.util
 if "selected_model" not in st.session_state:
     st.session_state.selected_model = ""  # Initialize selected model in session state
 if "api_key" not in st.session_state:
-    st.session_state.api_key = ""  # Initialize API key in session state
+    st.session_state.api_key = ""  # Initialize Groq API key in session state
 if "messages" not in st.session_state:
     st.session_state.messages = []  # Store chat history
+if "qdrant_key" not in st.session_state:
+    st.session_state.qdrant_key = ""  # Initialize Qdrant API key in session state
+if "qdrant_url" not in st.session_state:
+    st.session_state.qdrant_url = ""  # Initialize Qdrant Url in session state
+if "exa_api_key" not in st.session_state:
+    st.session_state.exa_api_key = "" #Initialize Exa API Key
 
 COLLECTION_NAME = "pdf_chunks"
 SESSION_HISTORY = "session_history"
 
 # Supported Model Providers (ensure this part exists in your code)
 MODEL_PROVIDERS = {
-    "Llama 3 (70B)": {
-        "model": "groq/llama3-70b-8192",
+    "Gemma 2": {
+        "model": "groq/gemma2-9b-it",
         "base_url": "https://api.groq.com/openai/v1",
         "api_key_env": "GROQ_API_KEY",
     },
-    "Gemma 2": {
-        "model": "groq/gemma2-9b-it",
+    "Llama 3 (70B)": {
+        "model": "groq/llama3-70b-8192",
         "base_url": "https://api.groq.com/openai/v1",
         "api_key_env": "GROQ_API_KEY",
     },
@@ -31,14 +37,6 @@ MODEL_PROVIDERS = {
     },
 }
 
-if "qdrant_key" not in st.session_state:
-    st.session_state.qdrant_key = ""  # Initialize API key in session state
-
-if "qdrant_url" not in st.session_state:
-    st.session_state.qdrant_url = ""  # Initialize API key in session state
-
-if "exa_api_key" not in st.session_state:
-    st.session_state.exa_api_key = ""
 
 # Title and app description
 st.title("💬 BramBot")
@@ -67,7 +65,11 @@ with col2:
         )
 
 #Place Checkbox here
-use_docs = st.checkbox("Use documents")
+colcheckbox1, colcheckbox2 = st.columns([3,3])
+with colcheckbox1:
+    use_docs = st.toggle("Use documents")
+with colcheckbox2:
+    use_internet = st.toggle("Use Internet search")
 
 if use_docs:
     col3, col4 = st.columns([6, 6])  # This gives the first column 6/12 and the second 6/12 width
@@ -84,13 +86,14 @@ if use_docs:
             type="password",
             placeholder="Your Qdrant API Key here"
         )
-else:
+if use_internet:
     st.session_state.exa_api_key = st.text_input(
         "Enter your EXA key:",
         value=st.session_state.exa_api_key or "",
         type="password",
         placeholder="Your EXA key here"
     )
+
 
 # Reset the API key and chat history if a new model is selected
 if st.session_state.selected_model != selected_model:
@@ -115,12 +118,13 @@ if use_docs:
                 qdrant_url= st.session_state.qdrant_url,
                 model_config= selected_model_config,
                 use_docs = use_docs,
+                use_internet = use_internet,
                 exa_api_key=st.session_state.exa_api_key
             )
     else:
         st.warning("Please enter your API key to proceed.")
-else:
-    if st.session_state.api_key and st.session_state.exa_api_key:
+if use_internet:
+    if st.session_state.exa_api_key:
         st.success(f"API Key provided! Selected model: {st.session_state.selected_model}")
         spec = importlib.util.spec_from_file_location("crew_ai_app", "crew_ai_app.py")
         crew_ai_module = importlib.util.module_from_spec(spec)
@@ -135,6 +139,28 @@ else:
                 qdrant_url= st.session_state.qdrant_url,
                 model_config= selected_model_config,
                 use_docs = use_docs,
+                use_internet = use_internet,
+                exa_api_key=st.session_state.exa_api_key
+            )
+    else:
+        st.warning("Please enter your API key to proceed.")
+else:
+    if st.session_state.api_key:
+        st.success(f"API Key provided! Selected model: {st.session_state.selected_model}")
+        spec = importlib.util.spec_from_file_location("crew_ai_app", "crew_ai_app.py")
+        crew_ai_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(crew_ai_module)
+
+        # Call the Crew AI function with selected model and API key
+        if hasattr(crew_ai_module, "run_crew_ai_app"):
+            selected_model_config = MODEL_PROVIDERS[st.session_state.selected_model]
+            crew_ai_module.run_crew_ai_app(
+                api_key= st.session_state.api_key,
+                qdrant_key= st.session_state.qdrant_key,
+                qdrant_url= st.session_state.qdrant_url,
+                model_config= selected_model_config,
+                use_docs = use_docs,
+                use_internet = use_internet,
                 exa_api_key=st.session_state.exa_api_key
             )
     else:
