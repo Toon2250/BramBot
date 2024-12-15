@@ -51,7 +51,7 @@ col1, col2 = st.columns([4, 8])  # This gives the first column 8/12 and the seco
 # Model Selector in the second column (4/12)
 with col1:
     selected_model = st.selectbox(
-        "Choose a Model Provider:", list(MODEL_PROVIDERS.keys()), index=0
+        "Choose a Model Provider:", list(MODEL_PROVIDERS.keys()), index=1
     )
 
 # API Key input in the first column (8/12)
