@@ -177,7 +177,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
             )
             
             task_summarize_question = Task(
-                description=f"Summarize the full answer in a clear manner.",
+                description=f"SLightly summarize the answer so it answers the question in a full manner. User Question: \n{user_input}",
                 input=(task_answer_question.output, task_define_problem.output),
                 expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points. ",
                 agent=BramBot
