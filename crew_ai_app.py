@@ -231,9 +231,6 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
                 st.write(result.raw)
 
             SumHistory = Task_Summarize_Session.output
-
-            with open('readme.txt', 'w') as f:
-                f.write(str(SumHistory))
  
     except Exception as e:
         st.error(f"Error in Crew AI application: {e}")
