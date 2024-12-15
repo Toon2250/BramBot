@@ -150,7 +150,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
                 )
                 task_answer_context_question = Task(
                     description=f"Answer the user's question with full context and source, if no context fill in yourself. User's question: \n{task_define_problem.output}",
-                    input=(Task_Filter_Context.output, Task_Summarize_Session.output),
+                    input=(Task_Filter_Context.output, Task_Summarize_Session.output, task_define_problem.output),
                     expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context and source.",
                     agent=Question_Solving
                 )
@@ -158,7 +158,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
             if use_internet:               
                 task_answer_question_internet = Task(
                     description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, this is a link of the article where you found the information from. User's question: {task_define_problem.output}",
-                    input=(Task_Summarize_Session.output),
+                    input=(Task_Summarize_Session.output, task_define_problem.output),
                     expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context from the article that you found and link of that used article.",
                     agent=Internet_Search
                 )
@@ -170,15 +170,16 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
                 )
 
             task_answer_question = Task(
-                description=f"A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question. User's question: \n{task_define_problem.output}",
+                description=f"A thoughtful, detailed, and easy-to-understand answer that directly addresses the question.",
+                input=task_define_problem.output,
                 expected_output="A concise and accurate answer to the user's query, unless the query requires detailed explanation.",
                 agent=Question_Solving
-            )                
+            )
             
             task_summarize_question = Task(
-                description="Summarize the full answer in a clear manner.",
-                input=task_answer_question.output,
-                expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points.",
+                description=f"Summarize the full answer in a clear manner.",
+                input=(task_answer_question.output, task_define_problem.output),
+                expected_output="A concise, conversational summary of the answer that makes it easy for the user to understand the key points. ",
                 agent=BramBot
             )   
                 
