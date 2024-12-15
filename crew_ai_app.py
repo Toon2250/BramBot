@@ -102,6 +102,7 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
             SumHistory += "\n" + last_user_message + "\n" + last_bot_message
         else:
             SumHistory = ""
+            
         if user_input:
             st.session_state.messages.append({"role": "user", "content": user_input})
             with st.chat_message("user"):
@@ -127,20 +128,19 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
 
             # Step 3: Define Crew Tasks
             task_define_problem = Task(
-                description=f"Clarify and define the questions: {user_input}",
+                description=f"Clarify and define the question: {user_input}",
                 expected_output="A clear and conversational understanding of what the user is asking, rephrased in a way that's easy to follow.",
                 agent=Question_Identifier
             )
 
             Task_Summarize_Session= Task(
-                description=f"Summarize the session in a clear manner based on the question: \n{user_input} \n\n{MessageList}",
+                description=f"Summarize the session in a clear manner based on the question asked: \n{user_input} \n previous chat history: \n{SumHistory}",
                 input=task_define_problem.output,
                 expected_output="A friendly recap of the discussion so far, highlighting the key points and what has been addressed.",
                 agent=BramBot
             )
             
-            SumHistory = Task_Summarize_Session.output
-
+            
             if use_docs:
                 Task_Filter_Context = Task(
                     description=f"Filter the context:\n{relevant_context}",
@@ -149,21 +149,20 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
                     agent=Context_Filter
                 )
                 task_answer_context_question = Task(
-                    description=f"Answer the user's question with full context and source, if no context fill in yourself.",
-                    input=(task_define_problem.output, Task_Filter_Context.output, Task_Summarize_Session.output),
+                    description=f"Answer the user's question with full context and source, if no context fill in yourself. User's question: \n{task_define_problem.output}",
+                    input=(Task_Filter_Context.output, Task_Summarize_Session.output),
                     expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context and source.",
                     agent=Question_Solving
                 )
             if use_internet:               
                 task_answer_question_internet = Task(
-                    description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, this is a link of the article where you found the information from.",
-                    input=(task_define_problem.output, Task_Summarize_Session.output),
+                    description=f"Answer the user's question using an internet search, you always try to use the most recent information you can find online. Also return the sources where you have found this information, this is a link of the article where you found the information from. User's question: {task_define_problem.output}",
+                    input=(Task_Summarize_Session.output),
                     expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context from the article that you found and link of that used article.",
                     agent=Internet_Search
                 )
             task_answer_question = Task(
-                description="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question.",
-                input=task_define_problem.output,
+                description=f"A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question. User's question: \n{task_define_problem.output}",
                 expected_output="A concise and accurate answer to the user's query, unless the query requires detailed explanation.",
                 agent=Question_Solving
             )
@@ -231,5 +230,10 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
             with st.chat_message("assistant"):
                 st.write(result.raw)
 
+            SumHistory = Task_Summarize_Session.output
+
+            with open('readme.txt', 'w') as f:
+                f.write(str(SumHistory))
+ 
     except Exception as e:
         st.error(f"Error in Crew AI application: {e}")
