@@ -161,19 +161,13 @@ def run_crew_ai_app(api_key, model_config, qdrant_key, qdrant_url, use_docs, use
                     expected_output="A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question, incorporating any available context from the article that you found and link of that used article.",
                     agent=Internet_Search
                 )
+                
             task_answer_question = Task(
                 description=f"A thoughtful, detailed, and easy-to-understand answer that directly addresses the user's question. User's question: \n{task_define_problem.output}",
                 expected_output="A concise and accurate answer to the user's query, unless the query requires detailed explanation.",
                 agent=Question_Solving
             )
 
-            if use_docs:
-                task_summarize_question = Task(
-                    description="Summarize the full answer in a clear manner.",
-                    input=task_answer_context_question.output,
-                    expected_output="A concise, conversational summary of the answer and source that makes it easy for the user to understand the key points.",
-                    agent=BramBot
-                )
             if use_internet:
                 task_summarize_question_internet = Task(
                     description="Summarize the full answer in a clear manner, ensuring that any sources included are directly from the provided search results.",
